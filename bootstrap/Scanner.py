@@ -1,6 +1,7 @@
 from curses.ascii import isalpha, isdigit
 from math import fabs
 from Token import Token, TokenType, MatchRule
+from jlox import reportError
 
 
 require_closing_nested_comments = False  # True is like Dart. False is like C/Java/JS.
@@ -201,5 +202,5 @@ class Scanner:
 
 
     def error(self, line: int, message: str, where: str = ""):
-        print("[line " + str(line) + "] Error" + where + ": " + message)
+        reportError(line, message, where)
         self.hadError = True

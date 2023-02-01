@@ -46,18 +46,18 @@ class TokenType(Enum):
     EOF = auto()
 
 class Token:
-    ttype: TokenType
+    type: TokenType
     lexeme: str
     line: int
 
     def __init__(self, ttype: TokenType, lexeme: str, literal, line: int) -> None:
-        self.ttype = ttype
+        self.type = ttype
         self.lexeme = lexeme
         self.literal = literal
         self.line = line
     
     def __str__(self) -> str:
-        return f"{self.ttype} {self.lexeme} {self.literal}"
+        return f"{self.type} {self.lexeme} {self.literal}"
 
 class MatchRule:
     expected: str
