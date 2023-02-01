@@ -1,0 +1,59 @@
+from typing import Any
+from Token import Token
+
+class Expr:
+    def accept(self, visitor: Any):
+        raise NotImplementedError()
+
+class Binary(Expr):
+    left: Expr
+    operator: Token
+    right: Expr
+
+    def __init__(self, left: Expr, operator: Token, right: Expr):
+      self.left = left
+      self.operator = operator
+      self.right = right
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitBinaryExpr(self)
+
+class Grouping(Expr):
+    expression: Expr
+
+    def __init__(self, expression: Expr):
+      self.expression = expression
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitGroupingExpr(self)
+
+class Literal(Expr):
+    value: Any
+
+    def __init__(self, value: Any):
+      self.value = value
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitLiteralExpr(self)
+
+class Unary(Expr):
+    operator: Token
+    right: Expr
+
+    def __init__(self, operator: Token, right: Expr):
+      self.operator = operator
+      self.right = right
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitUnaryExpr(self)
+
+
+class Visitor:
+    def visitBinaryExpr(self, expr: Binary) -> Any:
+        raise NotImplementedError()
+    def visitGroupingExpr(self, expr: Grouping) -> Any:
+        raise NotImplementedError()
+    def visitLiteralExpr(self, expr: Literal) -> Any:
+        raise NotImplementedError()
+    def visitUnaryExpr(self, expr: Unary) -> Any:
+        raise NotImplementedError()
