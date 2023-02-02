@@ -47,6 +47,26 @@ class Unary(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitUnaryExpr(self)
 
+class Variable(Expr):
+    name: Token
+
+    def __init__(self, name: Token):
+      self.name = name
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitVariableExpr(self)
+
+class Assign(Expr):
+    name: Token
+    value: Expr
+
+    def __init__(self, name: Token, value: Expr):
+      self.name = name
+      self.value = value
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitAssignExpr(self)
+
 
 class Visitor:
     def visitBinaryExpr(self, expr: Binary) -> Any:
@@ -56,4 +76,8 @@ class Visitor:
     def visitLiteralExpr(self, expr: Literal) -> Any:
         raise NotImplementedError()
     def visitUnaryExpr(self, expr: Unary) -> Any:
+        raise NotImplementedError()
+    def visitVariableExpr(self, expr: Variable) -> Any:
+        raise NotImplementedError()
+    def visitAssignExpr(self, expr: Assign) -> Any:
         raise NotImplementedError()

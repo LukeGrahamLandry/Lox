@@ -27,9 +27,10 @@ def run(src_code: str):
 if __name__ == "__main__":
     from Scanner import Scanner
     from Parser import Parser
-    from generated.expression import Expr
     from AstPrinter import AstPrinter
     from Interpreter import Interpreter
+
+    interpreter = Interpreter()
 
     if len(sys.argv) > 1:
         filename = sys.argv[1]
@@ -38,14 +39,12 @@ if __name__ == "__main__":
 
         tokens = Scanner(src_code).scanTokens()
         parser = Parser(tokens)
-        expression = parser.parse()
+        statements = parser.parse()
 
-        if not hadError and expression is not None:
-            print(AstPrinter().print(expression))
-            Interpreter().interpret(expression)
+        if not hadError:
+            interpreter.interpret(statements)
     
     else:
-        interpreter = Interpreter()
         while True:
             hadError = False
             src_code = input(">>> ")
@@ -55,12 +54,12 @@ if __name__ == "__main__":
             tokens = Scanner(src_code).scanTokens()
             if hadError:
                 continue
+
             parser = Parser(tokens)
             if hadError:
                 continue
-            expression = parser.parse()
 
-            if expression is not None:
-                print(AstPrinter().print(expression))
-                interpreter.interpret(expression)
+            statements = parser.parse()
+            interpreter.interpret(statements)
+
             

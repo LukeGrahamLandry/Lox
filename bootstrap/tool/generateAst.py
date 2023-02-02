@@ -1,8 +1,11 @@
 from unicodedata import name
 
+current = ""
+
+generated_code = {}
 
 def output(s):
-    print(s)
+    generated_code[current] += s + "\n"
 
 class Field:
     type: str
@@ -15,6 +18,10 @@ class Field:
             self.type = "Any"
 
 def generate(baseName: str, entries: list[str]):
+    generated_code[baseName] = ""
+    global current
+    current = baseName
+
     output("from typing import Any")
     output("from Token import Token")
     output("")
@@ -63,6 +70,20 @@ generate("Expr", [
     "Binary   : Expr left, Token operator, Expr right",
     "Grouping : Expr expression",
     "Literal  : Object value",
-    "Unary    : Token operator, Expr right"
+    "Unary    : Token operator, Expr right",
+    "Variable : Token name",
+    "Assign   : Token name, Expr value"
 ])
 
+generate("Stmt", [
+      "Expression : Expr expression",
+      "Print      : Expr expression",
+      "Var        : Token name, Expr initializer",
+      "Block      : list[Stmt] statements"
+])
+
+for current, code in generated_code.items():
+    with open("bootstrap/generated/" + current.lower() + ".py", "w") as f:
+        if current == "Stmt":
+            f.write("from generated.expr import *\n")
+        f.write(code)

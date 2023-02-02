@@ -1,6 +1,12 @@
-from generated.expression import *
+import imp
+from typing import Any
+
+
+import generated.expr as expr
+import generated.stmt as stmt
 from Token import TokenType
 from jlox import reportRuntimeError, LoxRuntimeError
+from Environment import Environment
 
 numberBinaryOperators = [
     TokenType.MINUS,
@@ -13,18 +19,62 @@ numberBinaryOperators = [
     TokenType.EXPONENT
 ]
 
-class Interpreter(Visitor):
-    def interpret(self, expression: Expr):
+class Interpreter(expr.Visitor, stmt.Visitor):
+    environment: Environment
+
+    def __init__(self):
+        self.environment = Environment()
+        
+
+    def interpret(self, statements: list[stmt.Stmt]):
         try:
-            value = self.evaluate(expression)
-            print(self.stringify(value))
+            for statement in statements:
+                self.execute(statement)
         except LoxRuntimeError as e:
             reportRuntimeError(e)
 
-    def evaluate(self, expression: Expr):
+    def evaluate(self, expression: expr.Expr):
         return expression.accept(self)
+    
+    def execute(self, statement: stmt.Stmt):
+        return statement.accept(self)
 
-    def visitBinaryExpr(self, expr: Binary):
+
+    def visitBlockStmt(self, stmt: stmt.Block):
+        self.executeBlock(stmt.statements, Environment(self.environment))
+    
+    def executeBlock(self, statements: list[stmt.Stmt], env: Environment):
+        previous = self.environment
+
+        try:
+            self.environment = env
+            for statement in statements:
+                self.execute(statement)
+        finally:
+            self.environment = previous
+            
+
+
+    def visitVarStmt(self, stmt: stmt.Var):
+        value = self.evaluate(stmt.initializer)
+        self.environment.define(stmt.name.lexeme, value)
+
+    def visitExpressionStmt(self, stmt: stmt.Expression):
+        self.evaluate(stmt.expression)
+
+    def visitPrintStmt(self, stmt: stmt.Print):
+        value = self.evaluate(stmt.expression)
+        print(self.stringify(value))
+
+    def visitAssignExpr(self, expr: expr.Assign) -> Any:
+        value = self.evaluate(expr.value)
+        self.environment.assign(expr.name, value)
+        return value
+
+    def visitVariableExpr(self, expr: expr.Variable) -> Any:
+        return self.environment.get(expr.name)
+
+    def visitBinaryExpr(self, expr: expr.Binary):
         left = self.evaluate(expr.left)
         right = self.evaluate(expr.right)
 
@@ -64,13 +114,13 @@ class Interpreter(Visitor):
             case TokenType.BANG_EQUAL:
                 return not self.isEqual(left, right)
  
-    def visitGroupingExpr(self, expr: Grouping):
+    def visitGroupingExpr(self, expr: expr.Grouping):
         return self.evaluate(expr.expression)
 
-    def visitLiteralExpr(self, expr: Literal):
+    def visitLiteralExpr(self, expr: expr.Literal):
         return expr.value
 
-    def visitUnaryExpr(self, expr: Unary):
+    def visitUnaryExpr(self, expr: expr.Unary):
         value = self.evaluate(expr.right)
 
         match expr.operator.type:
@@ -99,4 +149,12 @@ class Interpreter(Visitor):
         return left == right
 
     def stringify(self, value) -> str:
-        return str(value)
+        s = str(value)
+
+        if isinstance(value, bool):
+            return s.lower()
+        
+        if isinstance(value, float) and s.endswith(".0"):
+            return s[:-2]
+        
+        return s

@@ -1,7 +1,9 @@
+from re import L
 from turtle import right
 from Token import Token, TokenType
-from jlox import reportError
-from generated.expression import *
+from jlox import reportError, LoxRuntimeError
+from generated.expr import *
+from generated.stmt import *
 from typing import Callable
 
 literals = {
@@ -37,14 +39,80 @@ class Parser:
         
         return expand
 
-    def parse(self) -> Expr | None:
+    def parse(self) -> list[Stmt]:
+        statements: list[Stmt] = []
+        
+        while not self.isAtEnd():
+            s = self.declaration()
+            if s is not None:
+                statements.append(s)
+        
+        return statements
+
+    def declaration(self) -> Stmt | None:
         try: 
-            return self.expression()
-        except RuntimeError:
-            return None
+            if self.match(TokenType.VAR):
+                return self.varDeclaration()
+            return self.statement()
+            
+        except:
+            print("Panic!")
+            self.synchronize()
     
+    def statement(self) -> Stmt:
+        if self.match(TokenType.LEFT_BRACE):
+            return self.blockStatement()
+        
+        isPrint = self.match(TokenType.PRINT)
+
+        value = self.expression()
+        self.consume(TokenType.SEMICOLON, "Expect ';' after value.")
+
+        if isPrint:
+            return Print(value)
+        
+        return Expression(value)
+    
+    def blockStatement(self) -> Stmt:
+        statements: list[Stmt] = []
+
+        while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
+            s = self.declaration()
+            if s is not None:
+                statements.append(s)
+        
+        self.consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
+
+        return Block(statements)
+
+    def varDeclaration(self) -> Stmt:
+        name = self.consume(TokenType.IDENTIFIER, "Expect variable name.")
+
+        initializer = Literal(None)
+        if self.match(TokenType.EQUAL):
+            initializer = self.expression()
+        
+        self.consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.")
+
+        return Var(name, initializer)
+
     def expression(self):
-        return self.equality()
+        return self.assignment()
+    
+    def assignment(self):
+        expr = self.equality()
+
+        if self.match(TokenType.EQUAL):
+            equals = self.previous()
+            value = self.assignment()
+
+            if isinstance(expr, Variable):
+                name = expr.name
+                return Assign(name ,value)
+            
+            self.error(equals, "Invalid assignment target."); 
+
+        return expr
 
     def unary(self) -> Expr:
         if self.match(TokenType.BANG, TokenType.MINUS):
@@ -66,6 +134,9 @@ class Parser:
             expr = self.expression()
             self.consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
             return Grouping(expr)
+        
+        if self.match(TokenType.IDENTIFIER):
+            return Variable(self.previous())
         
         raise self.error(self.peek(), "Expect expression.")
     
