@@ -31,3 +31,55 @@ var c = "global c";
 print a;
 print b;
 print c;
+
+if (4 > 3){
+    print "hello";
+} else {
+    print "no";
+}
+
+if (0 or 3 < 4){
+    print "hiii";
+}
+
+print "hi" or 2;
+print nil or "yes"; 
+
+var x = 0;
+while (x < 5){
+    print x;
+    x = x + 1;
+}
+
+var a = 0;
+var temp;
+
+for (var b = 1; a < 10000; b = temp + b) {
+  print a;
+  temp = a;
+  a = b;
+}
+
+print "done";
+print a;
+print b;
+print temp;
+
+a = 0;
+b = 0;
+while (true){
+    a = a + 1;
+
+    if (a == 2){
+        continue;
+    }
+
+    b = b + 1;
+
+    if (a > 5){
+        print "exit loop";
+        print a;
+        print b;
+        break;
+    }
+}

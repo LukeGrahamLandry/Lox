@@ -72,18 +72,23 @@ generate("Expr", [
     "Literal  : Object value",
     "Unary    : Token operator, Expr right",
     "Variable : Token name",
-    "Assign   : Token name, Expr value"
+    "Assign   : Token name, Expr value",
+    "Logical  : Expr left, Token operator, Expr right"
 ])
 
 generate("Stmt", [
       "Expression : Expr expression",
       "Print      : Expr expression",
       "Var        : Token name, Expr initializer",
-      "Block      : list[Stmt] statements"
+      "Block      : list[Stmt] statements",
+      "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
+      "While      : Expr condition, Stmt body",
+      "Throwable  : Token token",
 ])
 
 for current, code in generated_code.items():
     with open("bootstrap/generated/" + current.lower() + ".py", "w") as f:
         if current == "Stmt":
             f.write("from generated.expr import *\n")
+            f.write("from Token import *\n")
         f.write(code)

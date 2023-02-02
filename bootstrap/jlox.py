@@ -5,24 +5,29 @@ import sys
 from Token import Token
 
 class LoxRuntimeError(RuntimeError):
-    def __init__(self, operator: Token, message: str) -> None:
-        super().__init__(message + " " + str(operator))
-        self.operator = operator
-        self.message = message
+    displayMsg: str
+    def __init__(self, operator: Token, message: str):
+        self.displayMsg = f"{message}\n[line {operator.line}]"
+        super().__init__(self.displayMsg)
     
+    def __str__(self) -> str:
+        return self.displayMsg
 
-hadError = False
-hadRuntimeError = False
-def reportError(line: int, message: str, where: str = ""):
-    print("[line " + str(line) + "] Error" + where + ": " + message)
-    hadError = True
 
-def reportRuntimeError(error: LoxRuntimeError):
-    print(f"{error.message}\n[line {error.operator.line}]")
-    hadRuntimeError = True
+class LoxSyntaxError:
+    displayMsg: str
+    def __init__(self, line: int, message: str, where: str = ""):
+        self.displayMsg = "[line " + str(line) + "] Error" + where + ": " + message
 
-def run(src_code: str):
-    pass
+    def __str__(self) -> str:
+        return self.displayMsg
+
+
+def printErrorsAndMaybeExit(errors: list, exitCode: int):
+    for error in errors:
+        print(error)
+    if len(errors) > 0:
+        sys.exit(exitCode)
 
 if __name__ == "__main__":
     from Scanner import Scanner
@@ -37,13 +42,16 @@ if __name__ == "__main__":
         with open(filename, "r") as f:
             src_code = f.read()
 
-        tokens = Scanner(src_code).scanTokens()
+        scanner = Scanner(src_code)
+        tokens = scanner.scanTokens()
         parser = Parser(tokens)
         statements = parser.parse()
-
-        if not hadError:
-            interpreter.interpret(statements)
-    
+        # [print(AstPrinter().printStatement(x)) for x in statements]
+        printErrorsAndMaybeExit(scanner.errors + parser.errors, 65)
+        
+        interpreter.interpret(statements)
+        printErrorsAndMaybeExit(interpreter.errors, 70)
+        
     else:
         while True:
             hadError = False

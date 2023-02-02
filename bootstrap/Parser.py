@@ -1,7 +1,5 @@
-from re import L
-from turtle import right
 from Token import Token, TokenType
-from jlox import reportError, LoxRuntimeError
+from jlox import LoxSyntaxError
 from generated.expr import *
 from generated.stmt import *
 from typing import Callable
@@ -12,28 +10,46 @@ literals = {
     TokenType.NIL: None
 }
 
+loopJumpTokens = [TokenType.BREAK, TokenType.CONTINUE]
+
 class Parser:
     tokens: list[Token]
     current: int
+    currentLoopDepth: int
+    errors: list[LoxSyntaxError]
 
     def __init__(self, tokens: list[Token]) -> None:
         self.tokens = tokens
         self.current = 0
+        self.currentLoopDepth = 0
+        self.errors = []
 
-        self.exponent = self.createBinaryPrecedenceLevel([TokenType.EXPONENT], self.unary)
-        self.factor = self.createBinaryPrecedenceLevel([TokenType.SLASH, TokenType.STAR], self.exponent)
-        self.term = self.createBinaryPrecedenceLevel([TokenType.MINUS, TokenType.PLUS], self.factor)
-        self.comparison = self.createBinaryPrecedenceLevel([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL], self.term)
-        self.equality = self.createBinaryPrecedenceLevel([TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL], self.comparison)
+        self.exponent = self.createBinaryPrecedenceLevel(Binary, [TokenType.EXPONENT], self.unary)
+        self.factor = self.createBinaryPrecedenceLevel(Binary, [TokenType.SLASH, TokenType.STAR], self.exponent)
+        self.term = self.createBinaryPrecedenceLevel(Binary, [TokenType.MINUS, TokenType.PLUS], self.factor)
+        self.comparison = self.createBinaryPrecedenceLevel(Binary, [TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL], self.term)
+        self.equality = self.createBinaryPrecedenceLevel(Binary, [TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL], self.comparison)
+        self.andExpr = self.createBinaryPrecedenceLevel(Logical, [TokenType.AND], self.equality)
+        self.orExpr = self.createBinaryPrecedenceLevel(Logical, [TokenType.OR], self.andExpr)
 
-    def createBinaryPrecedenceLevel(self, matchingTokens: list[TokenType], nextDown: Callable[[], Expr]) -> Callable[[], Expr]:
+        self.keywordStatements = {
+            TokenType.LEFT_BRACE: self.blockStatement,
+            TokenType.IF: self.ifStatement,
+            TokenType.WHILE: self.whileStatement,
+            TokenType.FOR: self.forStatement,
+            TokenType.PRINT: lambda: self.expressionStatement(Print)
+        }
+
+        self.tokenKeywordStatements = {type:Throwable for type in loopJumpTokens}
+
+    def createBinaryPrecedenceLevel(self, factory, matchingTokens: list[TokenType], nextDown: Callable[[], Expr]) -> Callable[[], Expr]:
         def expand():
             expr = nextDown()
 
             while self.match(*matchingTokens):
                 operator = self.previous()
                 right = nextDown()
-                expr = Binary(expr, operator, right)
+                expr = factory(expr, operator, right)
             
             return expr
         
@@ -55,23 +71,94 @@ class Parser:
                 return self.varDeclaration()
             return self.statement()
             
-        except:
-            print("Panic!")
+        except Exception as e:
             self.synchronize()
-    
-    def statement(self) -> Stmt:
-        if self.match(TokenType.LEFT_BRACE):
-            return self.blockStatement()
-        
-        isPrint = self.match(TokenType.PRINT)
 
+    def statement(self) -> Stmt:
+        for type, supplier in self.keywordStatements.items():
+            if self.match(type):
+                return supplier()
+        
+        for type, supplier in self.tokenKeywordStatements.items():
+            if self.match(type):
+                token = self.previous()
+                statement = supplier(token)
+                if self.currentLoopDepth <= 0 and token.type in loopJumpTokens:
+                    # TODO: if i add new types of throwable, check if its a loop one
+                    raise self.error(token, "Unexpected jump outside loop.")
+                self.consume(TokenType.SEMICOLON, "Expect ';' after keyword statement.")
+                return statement
+
+        return self.expressionStatement(Expression)
+    
+    def loopBodyStatement(self) -> Stmt:
+        self.currentLoopDepth += 1
+        statement = self.statement()
+        self.currentLoopDepth -= 1
+        return statement
+    
+    def expressionStatement(self, factory) -> Stmt:
         value = self.expression()
         self.consume(TokenType.SEMICOLON, "Expect ';' after value.")
+        return factory(value)
 
-        if isPrint:
-            return Print(value)
+    # i might actually want a tree node for this later so that i keep the information for the transpiler 
+    def forStatement(self) -> Stmt:
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.")
         
-        return Expression(value)
+        if self.match(TokenType.VAR):
+            initializer = self.varDeclaration()
+        elif self.match(TokenType.SEMICOLON):
+            initializer = Expression(Literal(None))
+        else:
+            initializer = self.expressionStatement(Expression)
+
+        if self.check(TokenType.SEMICOLON):
+            condition = Literal(True)
+        else:
+            condition = self.expression()
+        self.consume(TokenType.SEMICOLON, "Expect ';' after 'for' condition.")
+        
+        if self.check(TokenType.RIGHT_PAREN):
+            increment = Expression(Literal(None))
+        else:
+            increment = Expression(self.expression())
+
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'for' clauses.")
+
+        body = self.loopBodyStatement()
+
+        body = Block([
+            body,
+            increment
+        ])
+
+        return Block([
+            initializer,
+            While(condition, body)
+        ])
+
+    def whileStatement(self) -> Stmt:
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.")
+        condition = self.expression()
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'while' condition.")
+
+        body = self.loopBodyStatement()
+
+        return While(condition, body)
+    
+    def ifStatement(self) -> Stmt:
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.")
+        condition = self.expression()
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'if' condition.")
+
+        thenBranch = self.statement()
+        elseBranch = Expression(Literal(None))
+        if self.match(TokenType.ELSE):
+            elseBranch = self.statement()
+        
+        return If(condition, thenBranch, elseBranch)
+
     
     def blockStatement(self) -> Stmt:
         statements: list[Stmt] = []
@@ -100,7 +187,7 @@ class Parser:
         return self.assignment()
     
     def assignment(self):
-        expr = self.equality()
+        expr = self.orExpr()
 
         if self.match(TokenType.EQUAL):
             equals = self.previous()
@@ -110,6 +197,7 @@ class Parser:
                 name = expr.name
                 return Assign(name ,value)
             
+            # TODO: why no throw? go back in the book
             self.error(equals, "Invalid assignment target."); 
 
         return expr
@@ -148,9 +236,11 @@ class Parser:
     
     def error(self, token: Token, message: str):
         if (token.type == TokenType.EOF):
-            reportError(token.line, message, where=" at end")
+            where = " at end"
         else:
-            reportError(token.line, message, where=" at '" + token.lexeme + "'")
+            where = " at '" + token.lexeme + "'"
+
+        self.errors.append(LoxSyntaxError(token.line, message, where))
         
         return RuntimeError()
 
@@ -191,7 +281,3 @@ class Parser:
     
     def previous(self):
         return self.tokens[self.current - 1]
-    
-
-  
-    

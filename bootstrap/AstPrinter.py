@@ -37,6 +37,9 @@ class AstPrinter(Visitor, stmt.Visitor):
     
     def visitVariableExpr(self, expr: Variable) -> str:
         return expr.name.lexeme
+    
+    def visitLogicalExpr(self, expr: Logical) -> str:
+        return self.parenthesize(expr.operator.lexeme, expr.left, expr.right)
 
     def visitExpressionStmt(self, stmt: stmt.Expression) -> str:
         return stmt.expression.accept(self)
@@ -53,3 +56,12 @@ class AstPrinter(Visitor, stmt.Visitor):
             s += statement.accept(self) + ", "
         
         return s[:-2]
+    
+    def visitIfStmt(self, stmt: stmt.If) -> Any:
+        return "if (" + self.print(stmt.condition) + ") then {" + self.printStatement(stmt.thenBranch) + "} else {" + self.printStatement(stmt.elseBranch) + "}"
+
+    def visitWhileStmt(self, stmt: stmt.While) -> Any:
+        return "while (" + self.print(stmt.condition) + ") do {" + self.printStatement(stmt.body) + "}"
+
+    def visitThrowableStmt(self, stmt: stmt.Throwable) -> str:
+        return "throw " + str(stmt.token.type)

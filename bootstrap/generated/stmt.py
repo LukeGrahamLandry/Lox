@@ -1,4 +1,5 @@
 from generated.expr import *
+from Token import *
 from typing import Any
 from Token import Token
 
@@ -44,6 +45,39 @@ class Block(Stmt):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitBlockStmt(self)
 
+class If(Stmt):
+    condition: Expr
+    thenBranch: Stmt
+    elseBranch: Stmt
+
+    def __init__(self, condition: Expr, thenBranch: Stmt, elseBranch: Stmt):
+      self.condition = condition
+      self.thenBranch = thenBranch
+      self.elseBranch = elseBranch
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitIfStmt(self)
+
+class While(Stmt):
+    condition: Expr
+    body: Stmt
+
+    def __init__(self, condition: Expr, body: Stmt):
+      self.condition = condition
+      self.body = body
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitWhileStmt(self)
+
+class Throwable(Stmt):
+    token: Token
+
+    def __init__(self, token: Token):
+      self.token = token
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitThrowableStmt(self)
+
 
 class Visitor:
     def visitExpressionStmt(self, stmt: Expression) -> Any:
@@ -53,4 +87,10 @@ class Visitor:
     def visitVarStmt(self, stmt: Var) -> Any:
         raise NotImplementedError()
     def visitBlockStmt(self, stmt: Block) -> Any:
+        raise NotImplementedError()
+    def visitIfStmt(self, stmt: If) -> Any:
+        raise NotImplementedError()
+    def visitWhileStmt(self, stmt: While) -> Any:
+        raise NotImplementedError()
+    def visitThrowableStmt(self, stmt: Throwable) -> Any:
         raise NotImplementedError()

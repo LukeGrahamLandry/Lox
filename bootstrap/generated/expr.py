@@ -67,6 +67,19 @@ class Assign(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitAssignExpr(self)
 
+class Logical(Expr):
+    left: Expr
+    operator: Token
+    right: Expr
+
+    def __init__(self, left: Expr, operator: Token, right: Expr):
+      self.left = left
+      self.operator = operator
+      self.right = right
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitLogicalExpr(self)
+
 
 class Visitor:
     def visitBinaryExpr(self, expr: Binary) -> Any:
@@ -80,4 +93,6 @@ class Visitor:
     def visitVariableExpr(self, expr: Variable) -> Any:
         raise NotImplementedError()
     def visitAssignExpr(self, expr: Assign) -> Any:
+        raise NotImplementedError()
+    def visitLogicalExpr(self, expr: Logical) -> Any:
         raise NotImplementedError()

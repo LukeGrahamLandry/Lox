@@ -1,11 +1,8 @@
-import imp
 from typing import Any
-
-
 import generated.expr as expr
 import generated.stmt as stmt
-from Token import TokenType
-from jlox import reportRuntimeError, LoxRuntimeError
+from Token import TokenType, Token
+from jlox import LoxRuntimeError
 from Environment import Environment
 
 numberBinaryOperators = [
@@ -19,26 +16,54 @@ numberBinaryOperators = [
     TokenType.EXPONENT
 ]
 
+class LoxExpectedException(LoxRuntimeError):
+    type: TokenType
+    def __init__(self, token: Token):
+        super().__init__(token, "uncaught thrown " + str(token.type))
+        self.type = token.type
+
 class Interpreter(expr.Visitor, stmt.Visitor):
     environment: Environment
+    errors: list[LoxRuntimeError]
 
     def __init__(self):
         self.environment = Environment()
-        
+        self.errors = []
 
     def interpret(self, statements: list[stmt.Stmt]):
         try:
             for statement in statements:
                 self.execute(statement)
         except LoxRuntimeError as e:
-            reportRuntimeError(e)
+            self.errors.append(e)
 
-    def evaluate(self, expression: expr.Expr):
+    def evaluate(self, expression: expr.Expr) -> Any:
         return expression.accept(self)
     
-    def execute(self, statement: stmt.Stmt):
-        return statement.accept(self)
+    def execute(self, statement: stmt.Stmt) -> None:
+        statement.accept(self)
+    
+    def visitThrowableStmt(self, stmt: stmt.Throwable) -> Any:
+        raise LoxExpectedException(stmt.token)
 
+    def visitWhileStmt(self, stmt: stmt.While):
+        try:
+            while self.isTruthy(self.evaluate(stmt.condition)):
+                try:
+                    self.execute(stmt.body)
+                except LoxExpectedException as e:
+                    if e.type != TokenType.CONTINUE:
+                        raise e
+        except LoxExpectedException as e:
+            if e.type != TokenType.BREAK:
+                raise e
+
+    def visitIfStmt(self, stmt: stmt.If):
+        condition = self.evaluate(stmt.condition)
+        if self.isTruthy(condition):
+            self.execute(stmt.thenBranch)
+        else:
+            self.execute(stmt.elseBranch)
 
     def visitBlockStmt(self, stmt: stmt.Block):
         self.executeBlock(stmt.statements, Environment(self.environment))
@@ -52,8 +77,6 @@ class Interpreter(expr.Visitor, stmt.Visitor):
                 self.execute(statement)
         finally:
             self.environment = previous
-            
-
 
     def visitVarStmt(self, stmt: stmt.Var):
         value = self.evaluate(stmt.initializer)
@@ -65,6 +88,20 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def visitPrintStmt(self, stmt: stmt.Print):
         value = self.evaluate(stmt.expression)
         print(self.stringify(value))
+
+    # this returns something with the correct truthy value, not necessarily a boolean 
+    def visitLogicalExpr(self, expr: expr.Logical) -> Any:
+        left = self.evaluate(expr.left)
+        match expr.operator.type:
+            case TokenType.OR:
+                if self.isTruthy(left):
+                    return left
+            case TokenType.AND:
+                if not self.isTruthy(left):
+                    return left
+        
+        return self.evaluate(expr.right)
+
 
     def visitAssignExpr(self, expr: expr.Assign) -> Any:
         value = self.evaluate(expr.value)

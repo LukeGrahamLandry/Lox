@@ -1,5 +1,11 @@
 Based on https://craftinginterpreters.com
 
+### Additions to book's jlox
+
+- block comments (/* ... */)
+- exponent operator (**) 
+- jump keywords for loops (break, continue)
+
 ## Scanner
 
 Converts a string of source code into a list of tokens. 

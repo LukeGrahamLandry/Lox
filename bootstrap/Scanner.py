@@ -1,7 +1,7 @@
 from curses.ascii import isalpha, isdigit
 from math import fabs
 from Token import Token, TokenType, MatchRule
-from jlox import reportError
+from jlox import LoxSyntaxError
 
 
 require_closing_nested_comments = False  # True is like Dart. False is like C/Java/JS.
@@ -42,7 +42,9 @@ keywords = {
     "this": TokenType.THIS,
     "true": TokenType.TRUE,
     "var": TokenType.VAR,
-    "while": TokenType.WHILE
+    "while": TokenType.WHILE,
+    "break": TokenType.BREAK,
+    "continue": TokenType.CONTINUE
 }
 
 
@@ -52,14 +54,14 @@ class Scanner:
     current: int
     line: int
     tokens: list[Token]
-    hadError: bool
+    errors: list[LoxSyntaxError]
 
     def __init__(self, source: str) -> None:
         self.source = source
         self.start = 0
         self.current = 0
         self.line = 1
-        self.hadError = False
+        self.errors = []
         self.tokens = []
 
     def scanTokens(self) -> list[Token]:
@@ -202,5 +204,4 @@ class Scanner:
 
 
     def error(self, line: int, message: str, where: str = ""):
-        reportError(line, message, where)
-        self.hadError = True
+        self.errors.append(LoxSyntaxError(line, message, where))

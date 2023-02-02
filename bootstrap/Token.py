@@ -44,6 +44,9 @@ class TokenType(Enum):
     VAR = auto()
     WHILE = auto()
 
+    BREAK = auto()
+    CONTINUE = auto()
+
     EOF = auto()
 
 class Token:
