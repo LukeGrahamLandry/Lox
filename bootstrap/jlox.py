@@ -6,6 +6,7 @@ from Token import Token
 
 class LoxRuntimeError(RuntimeError):
     displayMsg: str
+    
     def __init__(self, operator: Token, message: str):
         self.displayMsg = f"{message}\n[line {operator.line}]"
         super().__init__(self.displayMsg)
@@ -46,7 +47,8 @@ if __name__ == "__main__":
         tokens = scanner.scanTokens()
         parser = Parser(tokens)
         statements = parser.parse()
-        # [print(AstPrinter().printStatement(x)) for x in statements]
+        print(AstPrinter().printStatement(statements))
+        print("========")
         printErrorsAndMaybeExit(scanner.errors + parser.errors, 65)
         
         interpreter.interpret(statements)

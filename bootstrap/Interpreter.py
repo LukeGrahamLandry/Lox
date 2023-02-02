@@ -1,9 +1,13 @@
+from ast import In, arguments
+from glob import glob
 from typing import Any
 import generated.expr as expr
 import generated.stmt as stmt
 from Token import TokenType, Token
 from jlox import LoxRuntimeError
 from Environment import Environment
+import LoxCallable as natives
+from LoxCallable import LoxCallable
 
 numberBinaryOperators = [
     TokenType.MINUS,
@@ -22,18 +26,36 @@ class LoxExpectedException(LoxRuntimeError):
         super().__init__(token, "uncaught thrown " + str(token.type))
         self.type = token.type
 
+class LoxReturn(LoxExpectedException):
+    value: Any
+    def __init__(self, token: Token, value):
+        super().__init__(token)
+        self.value = value
+
 class Interpreter(expr.Visitor, stmt.Visitor):
-    environment: Environment
+    currentScope: Environment
+    globalScope: Environment
     errors: list[LoxRuntimeError]
 
     def __init__(self):
-        self.environment = Environment()
+        self.globalScope = Environment()
+        self.currentScope = self.globalScope
         self.errors = []
 
-    def interpret(self, statements: list[stmt.Stmt]):
+        for name, value in self.getLoxGlobals().items():
+            self.globalScope.rawDefine(name, value)
+    
+    def getLoxGlobals(self) -> dict[str, Any]:
+        return {
+            "clock": natives.Clock(),
+            "environment": natives.GetEnvironmentString()
+        }
+
+    def interpret(self, statement: stmt.Stmt):
+        # since statement will be a Block, the script's outer most scope will not actually be the interpreter's global scope
+        # but that's fine. it just means multiple scripts on the same interpreter can't affect each other 
         try:
-            for statement in statements:
-                self.execute(statement)
+            self.execute(statement)
         except LoxRuntimeError as e:
             self.errors.append(e)
 
@@ -42,8 +64,16 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     
     def execute(self, statement: stmt.Stmt) -> None:
         statement.accept(self)
+
+    def visitReturnStmt(self, stmt: stmt.Return):
+        value = self.evaluate(stmt.value)
+        raise LoxReturn(stmt.keyword, value)
     
-    def visitThrowableStmt(self, stmt: stmt.Throwable) -> Any:
+    def visitFunctionStmt(self, stmt: stmt.Function):
+        func = LoxFunction(stmt, self.currentScope)
+        self.currentScope.define(stmt.name, func)
+    
+    def visitThrowableStmt(self, stmt: stmt.Throwable):
         raise LoxExpectedException(stmt.token)
 
     def visitWhileStmt(self, stmt: stmt.While):
@@ -66,21 +96,21 @@ class Interpreter(expr.Visitor, stmt.Visitor):
             self.execute(stmt.elseBranch)
 
     def visitBlockStmt(self, stmt: stmt.Block):
-        self.executeBlock(stmt.statements, Environment(self.environment))
+        self.executeBlock(stmt.statements, Environment(self.currentScope))
     
     def executeBlock(self, statements: list[stmt.Stmt], env: Environment):
-        previous = self.environment
+        previous = self.currentScope
 
         try:
-            self.environment = env
+            self.currentScope = env
             for statement in statements:
                 self.execute(statement)
         finally:
-            self.environment = previous
+            self.currentScope = previous
 
     def visitVarStmt(self, stmt: stmt.Var):
         value = self.evaluate(stmt.initializer)
-        self.environment.define(stmt.name.lexeme, value)
+        self.currentScope.define(stmt.name, value)
 
     def visitExpressionStmt(self, stmt: stmt.Expression):
         self.evaluate(stmt.expression)
@@ -88,6 +118,20 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def visitPrintStmt(self, stmt: stmt.Print):
         value = self.evaluate(stmt.expression)
         print(self.stringify(value))
+
+    def visitCallExpr(self, expr: expr.Call) -> Any:
+        callee = self.evaluate(expr.callee)
+        arguments = []
+        for arg in expr.arguments:
+            arguments.append(self.evaluate(arg))
+
+        if not isinstance(callee, LoxCallable):
+            raise LoxRuntimeError(expr.paren, "Can only call functions and classes.")
+        
+        if len(arguments) != callee.arity():
+            raise LoxRuntimeError(expr.paren, f"Expected {callee.arity()} arguments but got {len(arguments)}.")
+        
+        return callee.call(self, arguments)
 
     # this returns something with the correct truthy value, not necessarily a boolean 
     def visitLogicalExpr(self, expr: expr.Logical) -> Any:
@@ -105,11 +149,11 @@ class Interpreter(expr.Visitor, stmt.Visitor):
 
     def visitAssignExpr(self, expr: expr.Assign) -> Any:
         value = self.evaluate(expr.value)
-        self.environment.assign(expr.name, value)
+        self.currentScope.assign(expr.name, value)
         return value
 
     def visitVariableExpr(self, expr: expr.Variable) -> Any:
-        return self.environment.get(expr.name)
+        return self.currentScope.get(expr.name)
 
     def visitBinaryExpr(self, expr: expr.Binary):
         left = self.evaluate(expr.left)
@@ -195,3 +239,29 @@ class Interpreter(expr.Visitor, stmt.Visitor):
             return s[:-2]
         
         return s
+
+class LoxFunction(LoxCallable):
+    declaration: stmt.Function
+    closure: Environment
+
+    def __init__(self, declaration: stmt.Function, closure: Environment) -> None:
+        self.declaration = declaration
+        self.closure = closure
+
+    def call(self, interpreter: Interpreter, arguments: list) -> Any:
+        environment = Environment(self.closure)
+
+        for i, identifier in enumerate(self.declaration.params):
+            environment.define(identifier, arguments[i])
+        
+        try:
+            interpreter.executeBlock(self.declaration.body, environment)
+            return None
+        except LoxReturn as returnValue:
+            return returnValue.value
+
+    def arity(self) -> int:
+        return len(self.declaration.params)
+    
+    def __str__(self) -> str:
+        return "<fn " + self.declaration.name.lexeme + ">"

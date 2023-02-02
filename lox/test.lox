@@ -1,85 +1,31 @@
-print -123 * (45.67 + 5);
-print "one" + " string";
-print true;
-print 2 + 1;
+print "time:";
+print clock();
 
-var a = 1;
-var b = 5;
-print a + b;
+print "count:";
 
-b = 7 + a;
-
-print b;
-
-
-var a = "global a";
-var b = "global b";
-var c = "global c";
-{
-  var a = "outer a";
-  var b = "outer b";
-  {
-    var a = "inner a";
-    print a;
-    print b;
-    print c;
+fun makeCounter() {
+  var i = 0;
+  fun count() {
+    i = i + 1;
+    print i;
   }
-  print a;
-  print b;
-  print c;
-}
-print a;
-print b;
-print c;
 
-if (4 > 3){
-    print "hello";
-} else {
-    print "no";
+  return count;
 }
 
-if (0 or 3 < 4){
-    print "hiii";
+var counter = makeCounter();
+counter();
+counter();
+
+print "fib numbers:";
+
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
 }
 
-print "hi" or 2;
-print nil or "yes"; 
-
-var x = 0;
-while (x < 5){
-    print x;
-    x = x + 1;
+for (var i = 0; i < 6; i = i + 1) {
+  print fib(i);
 }
 
-var a = 0;
-var temp;
-
-for (var b = 1; a < 10000; b = temp + b) {
-  print a;
-  temp = a;
-  a = b;
-}
-
-print "done";
-print a;
-print b;
-print temp;
-
-a = 0;
-b = 0;
-while (true){
-    a = a + 1;
-
-    if (a == 2){
-        continue;
-    }
-
-    b = b + 1;
-
-    if (a > 5){
-        print "exit loop";
-        print a;
-        print b;
-        break;
-    }
-}
+print environment();

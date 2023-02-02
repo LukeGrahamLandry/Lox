@@ -73,7 +73,8 @@ generate("Expr", [
     "Unary    : Token operator, Expr right",
     "Variable : Token name",
     "Assign   : Token name, Expr value",
-    "Logical  : Expr left, Token operator, Expr right"
+    "Logical  : Expr left, Token operator, Expr right",
+    "Call     : Expr callee, Token paren, list[Expr] arguments"
 ])
 
 generate("Stmt", [
@@ -84,6 +85,8 @@ generate("Stmt", [
       "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
       "While      : Expr condition, Stmt body",
       "Throwable  : Token token",
+      "Function   : Token name, list[Token] params, list[Stmt] body",
+      "Return     : Token keyword, Expr value"
 ])
 
 for current, code in generated_code.items():

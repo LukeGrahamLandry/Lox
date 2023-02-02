@@ -78,6 +78,30 @@ class Throwable(Stmt):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitThrowableStmt(self)
 
+class Function(Stmt):
+    name: Token
+    params: list[Token]
+    body: list[Stmt]
+
+    def __init__(self, name: Token, params: list[Token], body: list[Stmt]):
+      self.name = name
+      self.params = params
+      self.body = body
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitFunctionStmt(self)
+
+class Return(Stmt):
+    keyword: Token
+    value: Expr
+
+    def __init__(self, keyword: Token, value: Expr):
+      self.keyword = keyword
+      self.value = value
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitReturnStmt(self)
+
 
 class Visitor:
     def visitExpressionStmt(self, stmt: Expression) -> Any:
@@ -93,4 +117,8 @@ class Visitor:
     def visitWhileStmt(self, stmt: While) -> Any:
         raise NotImplementedError()
     def visitThrowableStmt(self, stmt: Throwable) -> Any:
+        raise NotImplementedError()
+    def visitFunctionStmt(self, stmt: Function) -> Any:
+        raise NotImplementedError()
+    def visitReturnStmt(self, stmt: Return) -> Any:
         raise NotImplementedError()

@@ -80,6 +80,19 @@ class Logical(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitLogicalExpr(self)
 
+class Call(Expr):
+    callee: Expr
+    paren: Token
+    arguments: list[Expr]
+
+    def __init__(self, callee: Expr, paren: Token, arguments: list[Expr]):
+      self.callee = callee
+      self.paren = paren
+      self.arguments = arguments
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitCallExpr(self)
+
 
 class Visitor:
     def visitBinaryExpr(self, expr: Binary) -> Any:
@@ -95,4 +108,6 @@ class Visitor:
     def visitAssignExpr(self, expr: Assign) -> Any:
         raise NotImplementedError()
     def visitLogicalExpr(self, expr: Logical) -> Any:
+        raise NotImplementedError()
+    def visitCallExpr(self, expr: Call) -> Any:
         raise NotImplementedError()

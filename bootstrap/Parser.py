@@ -12,6 +12,9 @@ literals = {
 
 loopJumpTokens = [TokenType.BREAK, TokenType.CONTINUE]
 
+# no technical reason at this point. for consistency with bytecode interpreter in book
+max_function_args_count = 255
+
 class Parser:
     tokens: list[Token]
     current: int
@@ -37,7 +40,9 @@ class Parser:
             TokenType.IF: self.ifStatement,
             TokenType.WHILE: self.whileStatement,
             TokenType.FOR: self.forStatement,
-            TokenType.PRINT: lambda: self.expressionStatement(Print)
+            TokenType.PRINT: lambda: self.expressionStatement(Print),
+            TokenType.FUN: lambda: self.functionDefinition("function"),
+            TokenType.RETURN: self.returnStatement
         }
 
         self.tokenKeywordStatements = {type:Throwable for type in loopJumpTokens}
@@ -55,7 +60,7 @@ class Parser:
         
         return expand
 
-    def parse(self) -> list[Stmt]:
+    def parse(self) -> Block:
         statements: list[Stmt] = []
         
         while not self.isAtEnd():
@@ -63,7 +68,7 @@ class Parser:
             if s is not None:
                 statements.append(s)
         
-        return statements
+        return Block(statements)
 
     def declaration(self) -> Stmt | None:
         try: 
@@ -101,6 +106,40 @@ class Parser:
         value = self.expression()
         self.consume(TokenType.SEMICOLON, "Expect ';' after value.")
         return factory(value)
+    
+    def returnStatement(self) -> Stmt:
+        keyword = self.previous()
+
+        value = Literal(None)
+        if not self.check(TokenType.SEMICOLON):
+            value = self.expression()
+        self.consume(TokenType.SEMICOLON, "Expect ';' after return value.")
+        
+        return Return(keyword, value)
+
+    def functionDefinition(self, kind: str):
+        name = self.consume(TokenType.IDENTIFIER, "Expect " + kind + " name.")
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after" + kind + " name.")
+
+        parameters: list[Token] = []
+
+        if not self.check(TokenType.RIGHT_PAREN):
+            while True:
+                if len(parameters) >= max_function_args_count:
+                    # dont actually raise the error because the parser doesn't need to panic here
+                    # it still understands the state so there's nothing to recover from but we arbitrarily don't allow it
+                    self.error(self.peek(), "Can't have more than 255 parameters.")
+                
+                parameters.append(self.consume(TokenType.IDENTIFIER, "Expect parameter name."))
+
+                if not self.match(TokenType.COMMA):
+                    break
+        
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.")
+        self.consume(TokenType.LEFT_BRACE, "Expect '{' before " + kind + " body.")
+
+        body = self.blockStatement()
+        return Function(name, parameters, body.statements)
 
     # i might actually want a tree node for this later so that i keep the information for the transpiler 
     def forStatement(self) -> Stmt:
@@ -160,7 +199,7 @@ class Parser:
         return If(condition, thenBranch, elseBranch)
 
     
-    def blockStatement(self) -> Stmt:
+    def blockStatement(self) -> Block:
         statements: list[Stmt] = []
 
         while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
@@ -197,7 +236,7 @@ class Parser:
                 name = expr.name
                 return Assign(name ,value)
             
-            # TODO: why no throw? go back in the book
+            # no throw because the parser still understands the state, it just can't let you assign to something other than a variable
             self.error(equals, "Invalid assignment target."); 
 
         return expr
@@ -208,8 +247,34 @@ class Parser:
             right = self.unary()
             return Unary(operator, right)
         
-        return self.primary()
+        return self.call()
     
+    def call(self) -> Expr:
+        expr = self.primary()
+
+        while self.match(TokenType.LEFT_PAREN):
+            expr = self.finishCall(expr)
+
+        return expr
+    
+    def finishCall(self, callee: Expr) -> Expr:
+        arguments: list[Expr] = []
+
+        if not self.check(TokenType.RIGHT_PAREN):
+            while True:
+                if len(arguments) >= max_function_args_count:
+                    # dont actually raise the error because the parser doesn't need to panic here
+                    # it still understands the state so there's nothing to recover from but we arbitrarily don't allow it
+                    self.error(self.peek(), "Can't have more than 255 arguments.")
+                
+                arguments.append(self.expression())
+
+                if not self.match(TokenType.COMMA):
+                    break
+        
+        closingBracket = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
+        return Call(callee, closingBracket, arguments)
+
     def primary(self) -> Expr:
         for key, value in literals.items():
             if self.match(key):
