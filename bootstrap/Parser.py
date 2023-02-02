@@ -18,7 +18,8 @@ class Parser:
         self.tokens = tokens
         self.current = 0
 
-        self.factor = self.createBinaryPrecedenceLevel([TokenType.SLASH, TokenType.STAR], self.unary)
+        self.exponent = self.createBinaryPrecedenceLevel([TokenType.EXPONENT], self.unary)
+        self.factor = self.createBinaryPrecedenceLevel([TokenType.SLASH, TokenType.STAR], self.exponent)
         self.term = self.createBinaryPrecedenceLevel([TokenType.MINUS, TokenType.PLUS], self.factor)
         self.comparison = self.createBinaryPrecedenceLevel([TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL], self.term)
         self.equality = self.createBinaryPrecedenceLevel([TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL], self.comparison)
@@ -42,7 +43,7 @@ class Parser:
         except RuntimeError:
             return None
     
-    def expression(self) -> Expr:
+    def expression(self):
         return self.equality()
 
     def unary(self) -> Expr:

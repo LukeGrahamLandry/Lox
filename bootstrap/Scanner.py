@@ -16,14 +16,14 @@ tokenChars = {
     "-": TokenType.MINUS,
     "+": TokenType.PLUS,
     ";": TokenType.SEMICOLON,
-    "*": TokenType.STAR,
 }
 
 doubleCharTokens = {
-    "!": MatchRule("=", TokenType.BANG_EQUAL, TokenType.EQUAL),
+    "!": MatchRule("=", TokenType.BANG_EQUAL, TokenType.BANG),
     "=": MatchRule("=", TokenType.EQUAL_EQUAL, TokenType.EQUAL),
     "<": MatchRule("=", TokenType.LESS_EQUAL, TokenType.LESS),
-    ">": MatchRule("=", TokenType.GREATER_EQUAL, TokenType.GREATER)
+    ">": MatchRule("=", TokenType.GREATER_EQUAL, TokenType.GREATER),
+    "*": MatchRule("*", TokenType.EXPONENT, TokenType.STAR)
 }
 
 keywords = {
