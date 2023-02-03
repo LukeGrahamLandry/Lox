@@ -92,16 +92,45 @@ test(1);
 
 print clock();
 
+var something = 1;
+
 class Cake {
   fun init(suffix){
     this.suffix = suffix;
+    this.part = Cake.Inner();
+    print "init";
+    print Cake.demo;
   }
 
   fun taste(extra) {
     var adjective = extra + " delicious " + this.suffix;
+    print Cake.demo;
+    this.part.hello(this.flavor);
     print "The " + this.flavor + " cake is " + adjective;
   }
+
+  static fun example(a){
+    print environment();
+    return 50 + a;
+  }
+
+  static var demo = 11 + something;
+  static var y = Cake.example(112);
+
+  static class Inner {
+    fun init(){
+        this.x = 0;
+    }
+
+    fun hello(type){
+        this.x = this.x + 1;
+        print "part says hello " + type;
+        print this.x;
+    }
+  }
 }
+
+print Cake.y;
 
 var cake = Cake("!");
 cake.flavor = "chocolate";
@@ -109,3 +138,36 @@ cake.taste("very");
 
 print cake.init(".");
 print cake.taste("again");
+
+print Cake;
+print cake.taste;
+print Cake.example;
+print Cake.demo;
+
+
+class Math {
+    static fun fib(n) {
+        if (n <= 1) return n;
+        return Math.fib(n - 2) + Math.fib(n - 1);
+    }
+}
+
+print fib(10);
+print Math.fib(10);
+
+/*
+anonFib = fun (n) {
+    if (n <= 1) return n;
+    return anonFib(n - 2) + anonFib(n - 1);
+};
+*/
+
+var anonClass = class {
+    fun say(){
+        print "inside";
+    }
+};
+
+anonClass().say();
+
+print class {fun init(a){ this.a = a;}};

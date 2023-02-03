@@ -44,7 +44,8 @@ keywords = {
     "var": TokenType.VAR,
     "while": TokenType.WHILE,
     "break": TokenType.BREAK,
-    "continue": TokenType.CONTINUE
+    "continue": TokenType.CONTINUE,
+    "static": TokenType.STATIC
 }
 
 

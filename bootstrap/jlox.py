@@ -8,8 +8,11 @@ import json
 class LoxRuntimeError(RuntimeError):
     displayMsg: str
     
-    def __init__(self, operator: Token, message: str):
-        self.displayMsg = f"{message}\n[line {operator.line}]"
+    def __init__(self, operator: Token | None, message: str):
+        if operator is None:
+            self.displayMsg = "Unspecified LoxRuntimeError Error"
+        else:
+            self.displayMsg = f"{message}\n[line {operator.line}]"
         super().__init__(self.displayMsg)
     
     def __str__(self) -> str:

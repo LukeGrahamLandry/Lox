@@ -133,16 +133,37 @@ class Parser:
     def classDeclaration(self) -> stmt.Class:
         name = self.consume(TokenType.IDENTIFIER, "Expect class name.")
         self.consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
-
+        klass = self.classBody()
+        return stmt.Class(name, klass.methods, klass.staticFields)
+    
+    def classBody(self) -> expr.ClassLiteral:
         methods: list[stmt.FunctionDef] = []
+        staticFields: list[stmt.Var] = []
 
         while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
-            self.consume(TokenType.FUN, "Expect 'fun' before method definition.")
-            methods.append(self.functionDefinition("method"))
+            if self.match(TokenType.FUN):
+                methods.append(self.functionDefinition("method"))
+                continue
+            elif self.match(TokenType.STATIC):
+                if self.match(TokenType.FUN):
+                    func = self.functionDefinition("method")
+                    staticFields.append(stmt.Var(func.name, func.callable))
+                    continue
+                if self.match(TokenType.VAR):
+                    staticFields.append(self.varDeclaration())
+                    continue
+                if self.match(TokenType.CLASS):
+                    klass = self.classDeclaration()
+                    staticFields.append(stmt.Var(klass.name, expr.ClassLiteral(klass.methods, klass.staticFields)))
+                    continue
+
+                raise self.error(self.peek(), "Static class members must begin with 'fun', 'var' or 'class'")
+            
+            raise self.error(self.peek(), "Statements in class body must begin with 'fun' or 'static'")
         
         self.consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
 
-        return stmt.Class(name, methods)
+        return expr.ClassLiteral(methods, staticFields)
 
     # i might actually want a tree node for this later so that i keep the information for the transpiler 
     def forStatement(self) -> stmt.Stmt:
@@ -218,7 +239,7 @@ class Parser:
 
         return stmt.Block(statements)
 
-    def varDeclaration(self) -> stmt.Stmt:
+    def varDeclaration(self) -> stmt.Var:
         name = self.consume(TokenType.IDENTIFIER, "Expect variable name.")
 
         initializer = expr.Literal(None)
@@ -308,6 +329,14 @@ class Parser:
             body = self.blockStatement()
 
             return expr.FunctionLiteral(parameters, body.statements)
+
+        # anonymous class
+        if self.check(TokenType.CLASS) and self.checkNext(TokenType.LEFT_BRACE):
+            # consume: class {
+            self.advance()
+            self.advance()
+
+            return self.classBody()
 
 
         raise self.error(self.peek(), "Expect expression.")

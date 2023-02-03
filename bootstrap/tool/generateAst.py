@@ -94,6 +94,7 @@ generate("Expr", [
     "FunctionLiteral : list[Token] params, list[Stmt] body",
     "Set      : Expr object, Token name, Expr value",
     "This     : Token keyword",
+    "ClassLiteral : list[Any] methods, list[Any] staticFields",
 ])
 
 generate("Stmt", [
@@ -104,10 +105,9 @@ generate("Stmt", [
       "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
       "While      : Expr condition, Stmt body",
       "Throwable  : Token token",
-      "FunctionDef   : Token name, FunctionLiteral callable",
+      "FunctionDef : Token name, FunctionLiteral callable",
       "Return     : Token keyword, Expr value",
-      "Class      : Token name, list[FunctionDef] methods",
-      
+      "Class      : Token name, list[FunctionDef] methods, list[Var] staticFields",
 ])
 
 for current, code in generated_code.items():

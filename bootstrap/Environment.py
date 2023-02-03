@@ -24,8 +24,14 @@ class Environment:
         raise LoxRuntimeError(name, "Undefined variable '" + name.lexeme + "'.")
     
     def getAt(self, distance: int, name: str) -> Any:
-        return self.ancestor(distance).values[name]
-    
+        try: 
+            return self.ancestor(distance).values[name]
+        except KeyError as e:
+            print("variable", name, "not found at distance", distance)
+            print(self)
+            raise LoxRuntimeError(None, "")
+               
+        
     def assignAt(self, distance: int, name: str, value: Any):
         self.ancestor(distance).values[name] = value
     

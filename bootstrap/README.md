@@ -13,6 +13,11 @@ Based on https://craftinginterpreters.com
     - unused function or local variable
     - access undefined variable
     - unreachable code after return/break/continue statement
+- class methods must be preceded by the fun keyword. 
+    - doesn't actually make parsing easier, i just think its more consistent. 
+- classes can have static fields, functions, and classes (static var, static fun, static class)
+    - each class is an instance of MetaClass so static things are accessed as properties 
+- anonymous classes (`class {fun init(a){ this.a = a;}}`)
 
 ## Scanner
 

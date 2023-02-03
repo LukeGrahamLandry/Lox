@@ -138,6 +138,17 @@ class This(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitThisExpr(self)
 
+class ClassLiteral(Expr):
+    methods: list[Any]
+    staticFields: list[Any]
+
+    def __init__(self, methods: list[Any], staticFields: list[Any]):
+      self.methods = methods
+      self.staticFields = staticFields
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitClassLiteralExpr(self)
+
 
 class Visitor:
     def visitBinaryExpr(self, expr: Binary) -> Any:
@@ -164,5 +175,7 @@ class Visitor:
         raise NotImplementedError()
     def visitThisExpr(self, expr: This) -> Any:
         raise NotImplementedError()
+    def visitClassLiteralExpr(self, expr: ClassLiteral) -> Any:
+        raise NotImplementedError()
 
-__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'Get', 'FunctionLiteral', 'Set', 'This']
+__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'Get', 'FunctionLiteral', 'Set', 'This', 'ClassLiteral']

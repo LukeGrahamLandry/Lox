@@ -41,6 +41,7 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         self.currentScope = self.globalScope
         self.errors = []
         self.locals = {}
+        self.metaClass = MetaClass()
 
         for name, value in self.getLoxGlobals().items():
             self.globalScope.rawDefine(name, value)
@@ -76,19 +77,46 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         statement.accept(self)
 
     def visitClassStmt(self, stmt: stmt.Class):
-        self.currentScope.define(stmt.name, None)  # allow backward reference of yourself. TODO: can i remove this when i split up the resolver?
+        self.declareClass(stmt.methods, stmt.staticFields, classNameToken=stmt.name)
+    
+    def declareClass(self, methodDefs: list[stmt.FunctionDef], staticFieldDefs: list[stmt.Var], classNameToken: Token | None = None) -> "LoxClass":
+        className = "anon"
+        if classNameToken is not None:
+            className = classNameToken.lexeme
+            self.currentScope.define(classNameToken, None)  # allow backward reference of yourself. TODO: can i remove this when i split up the resolver?
+            # TODO: currently since static classes are parsed into var assignment to literal, it wont know its name so you cant refer to it inside
+            # recursion for static functions of non static classs works tho 
+            # because its not referring to the function as a variable, it has to refer to the class which i carefully allowed self reference for and fields are done at runtime so its fine
 
         # methods are not just shoved in a field.
         # because we want to treat them differently later to inject 'this' in a new environment when referenced.
         methods: dict[str, LoxFunction] = {}
-        for method in stmt.methods:
-            name = stmt.name.lexeme + "::" + method.name.lexeme  # just used for string representation when printed
+        for method in methodDefs:
+            className = className + "::" + method.name.lexeme  # just used for string representation when printed
             isInitializer = method.name.lexeme == "init"
-            func = LoxFunction(method.callable, self.currentScope, name, isInitializer=isInitializer)
+            func = LoxFunction(method.callable, self.currentScope, className, isInitializer=isInitializer)
             methods[method.name.lexeme] = func
         
-        klass = LoxClass(stmt.name.lexeme, methods)
-        self.currentScope.define(stmt.name, klass)
+        klass = LoxClass(className, methods, self.metaClass)
+        if classNameToken is not None:
+            self.currentScope.define(classNameToken, klass)
+
+        # this mirrors the resolver's structure.
+        # static initializers are evaluated in a new scope but don't actually add themselves to it.
+        # so you still reference earlier statics with the class name prefix but referencing things from the scope above works out to the right number of hops.
+        previous = self.currentScope
+        try:
+            self.currentScope = Environment(self.currentScope)
+            for field in staticFieldDefs:
+                value = self.evaluate(field.initializer)
+                if isinstance(value, LoxFunction):
+                    value = LoxFunction(value.callable, self.currentScope, "static " + className + "::" + field.name.lexeme)
+                klass.set(field.name, value)
+        finally:
+            self.currentScope = previous
+
+        return klass
+        
 
     def visitGetExpr(self, expr: expr.Get) -> Any:
         instance = self.evaluate(expr.object)
@@ -118,6 +146,9 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         value = self.evaluate(stmt.value)
         raise LoxReturn(stmt.keyword, value)
     
+    def visitClassLiteralExpr(self, expr: expr.ClassLiteral) -> Any:
+        return self.declareClass(expr.methods, expr.staticFields)
+
     def visitFunctionDefStmt(self, stmt: stmt.FunctionDef):
         func = LoxFunction(stmt.callable, self.currentScope, name=stmt.name.lexeme)
         self.currentScope.define(stmt.name, func)
@@ -371,11 +402,12 @@ class LoxInstance:
         return "<inst " + self.klass.name + ">"
 
 
-class LoxClass(LoxCallable):
+class LoxClass(LoxInstance, LoxCallable):
     name: str
     methods: dict[str, LoxFunction]
 
-    def __init__(self, name: str, methods: dict[str, LoxFunction]):
+    def __init__(self, name: str, methods: dict[str, LoxFunction], metaClass: "LoxClass"):
+        super().__init__(metaClass)
         self.name = name
         self.methods = methods
     
@@ -401,5 +433,13 @@ class LoxClass(LoxCallable):
         else:
             return initializer.arity()
     
-    def __str__(self) -> str:
-        return "<cls " + self.name + ">"
+
+class MetaClass(LoxClass):
+    def __init__(self):
+        super().__init__("lang.Class", {}, self)
+    
+    def call(self, interpreter: Interpreter, arguments: list) -> LoxInstance:
+        raise NotImplementedError()
+    
+    def arity(self) -> int:
+        raise NotImplementedError()

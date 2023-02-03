@@ -95,6 +95,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
     
     def endScope(self):
         declared, used = self.scopes.pop()
+
         for var in declared:
             if not var.lexeme in used:
                 self.error(var, "Unused local variable.")
@@ -114,6 +115,8 @@ class Resolver(expr.Visitor, stmt.Visitor):
             return
         
         self.scopes.put(token.lexeme, True)
+
+        print("create on line", token.line, token.lexeme, "at depth", self.scopes.size())
     
     def error(self, name: Token, message: str):
         self.errors.append(LoxSyntaxError.of(name, message))
@@ -126,6 +129,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
                 self.scopes.markUsed(i, token.lexeme)
                 distance = self.scopes.size() - 1 - i
                 self.interpreter.resolve(expr, distance)
+                print("access on line", token.line, token.lexeme, "at distance", distance)
                 return
         
         # the script is its own block and the globalScope only has the native functions so we know all of them ahead of time. 
@@ -233,28 +237,40 @@ class Resolver(expr.Visitor, stmt.Visitor):
             self.error(stmt.token, "Can't jump from outside loop.")
         else:
             self.activeJumpStatement = stmt.token
-
-    def visitClassStmt(self, stmt: stmt.Class):
+    
+    def resolveClassBody(self, methods: list[stmt.FunctionDef], staticFields: list[stmt.Var]):
         enclosing = self.currentClass
         self.currentClass = ClassType.CLASS
-
-        self.declare(stmt.name)
-        self.define(stmt.name)
 
         self.beginScope()
         self.scopes.put("this", True)
         self.scopes.markUsed(self.scopes.size() - 1, "this")  # don't worry about unused 'this' variable
 
-        for method in stmt.methods:
+        for method in methods:
             declaration = FunctionType.METHOD
             if method.name.lexeme == "init":
                 declaration = FunctionType.INITIALIZER
             
             self.resolveFunction(method.callable, declaration)
-        
+
         self.endScope()
         self.currentClass = enclosing
 
+        # i want to just call resolve to deal with the static's normally.
+        # but that would pollute our the scope so they happen in a fake scope that gets thrown away.
+        # they're accessed as fields on the class instance not from the environment.
+        # but it ends up meaning all the distances are off by one so the interpreter has to add a fake scope as well. 
+        self.beginScope()
+        for field in staticFields:
+            self.resolveStmt(field)
+            self.scopes.markUsed(self.scopes.size() - 1, field.name.lexeme)  # later code might reference static fields
+        self.endScope()
+
+    def visitClassStmt(self, stmt: stmt.Class):
+        self.declare(stmt.name)
+        self.define(stmt.name)
+        self.resolveClassBody(stmt.methods, stmt.staticFields)
+        
     def visitGetExpr(self, expr: expr.Get):
         # TODO: static field checking. currently its done dynamically so we just ignore and trust that it will exist at runtime
         self.resolveExpr(expr.object)
@@ -269,3 +285,6 @@ class Resolver(expr.Visitor, stmt.Visitor):
             self.error(expr.keyword, "Can't use 'this' outside of a class.")
         else:
             self.resolveLocal(expr, expr.keyword)
+
+    def visitClassLiteralExpr(self, expr: expr.ClassLiteral):
+        self.resolveClassBody(expr.methods, expr.staticFields)
