@@ -94,6 +94,17 @@ class Call(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitCallExpr(self)
 
+class Get(Expr):
+    object: Expr
+    name: Token
+
+    def __init__(self, object: Expr, name: Token):
+      self.object = object
+      self.name = name
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitGetExpr(self)
+
 class FunctionLiteral(Expr):
     params: list[Token]
     body: list[Stmt]
@@ -104,6 +115,28 @@ class FunctionLiteral(Expr):
 
     def accept(self, visitor: Any) -> Any:
         return visitor.visitFunctionLiteralExpr(self)
+
+class Set(Expr):
+    object: Expr
+    name: Token
+    value: Expr
+
+    def __init__(self, object: Expr, name: Token, value: Expr):
+      self.object = object
+      self.name = name
+      self.value = value
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitSetExpr(self)
+
+class This(Expr):
+    keyword: Token
+
+    def __init__(self, keyword: Token):
+      self.keyword = keyword
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitThisExpr(self)
 
 
 class Visitor:
@@ -123,7 +156,13 @@ class Visitor:
         raise NotImplementedError()
     def visitCallExpr(self, expr: Call) -> Any:
         raise NotImplementedError()
+    def visitGetExpr(self, expr: Get) -> Any:
+        raise NotImplementedError()
     def visitFunctionLiteralExpr(self, expr: FunctionLiteral) -> Any:
         raise NotImplementedError()
+    def visitSetExpr(self, expr: Set) -> Any:
+        raise NotImplementedError()
+    def visitThisExpr(self, expr: This) -> Any:
+        raise NotImplementedError()
 
-__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'FunctionLiteral']
+__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'Get', 'FunctionLiteral', 'Set', 'This']

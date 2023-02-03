@@ -1,3 +1,4 @@
+from logging.config import IDENTIFIER
 from Token import Token, TokenType
 from jlox import LoxSyntaxError
 import generated.expr as expr
@@ -36,12 +37,14 @@ class Parser:
         self.requireIdentifier = lambda: self.consume(TokenType.IDENTIFIER, "Expect parameter name.")
 
         self.keywordStatements = {
+            TokenType.VAR: self.varDeclaration,
             TokenType.LEFT_BRACE: self.blockStatement,
             TokenType.IF: self.ifStatement,
             TokenType.WHILE: self.whileStatement,
             TokenType.FOR: self.forStatement,
             TokenType.PRINT: lambda: self.expressionStatement(stmt.Print),
-            TokenType.RETURN: self.returnStatement
+            TokenType.RETURN: self.returnStatement,
+            TokenType.CLASS: self.classDeclaration
         }
 
         self.tokenKeywordStatements = {type: stmt.Throwable for type in loopJumpTokens}
@@ -71,10 +74,7 @@ class Parser:
 
     def declaration(self) -> stmt.Stmt | None:
         try: 
-            if self.match(TokenType.VAR):
-                return self.varDeclaration()
             return self.statement()
-            
         except Exception as e:
             self.synchronize()
 
@@ -129,6 +129,20 @@ class Parser:
         body = self.blockStatement()
 
         return stmt.FunctionDef(name, expr.FunctionLiteral(parameters, body.statements))
+
+    def classDeclaration(self) -> stmt.Class:
+        name = self.consume(TokenType.IDENTIFIER, "Expect class name.")
+        self.consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
+
+        methods: list[stmt.FunctionDef] = []
+
+        while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
+            self.consume(TokenType.FUN, "Expect 'fun' before method definition.")
+            methods.append(self.functionDefinition("method"))
+        
+        self.consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
+
+        return stmt.Class(name, methods)
 
     # i might actually want a tree node for this later so that i keep the information for the transpiler 
     def forStatement(self) -> stmt.Stmt:
@@ -219,21 +233,24 @@ class Parser:
         return self.assignment()
     
     def assignment(self):
-        expr = self.orExpr()
+        expression = self.orExpr()
 
         if self.match(TokenType.EQUAL):
             equals = self.previous()
             value = self.assignment()
 
-            if isinstance(expr, stmt.Variable):
-                name = expr.name
-                return stmt.Assign(name, value)
+            if isinstance(expression, expr.Variable):
+                name = expression.name
+                return expr.Assign(name, value)
+            
+            if isinstance(expression, expr.Get):
+                return expr.Set(expression.object, expression.name, value)
             
             # Don't actually raise the error because the parser doesn't need to panic here.
             # It still understands the state, we just know that an assignment target must be a variable so this code is invalid. 
             self.error(equals, "Invalid assignment target."); 
 
-        return expr
+        return expression
 
     def unary(self) -> expr.Expr:
         if self.match(TokenType.BANG, TokenType.MINUS):
@@ -246,9 +263,15 @@ class Parser:
     def call(self) -> expr.Expr:
         expression = self.primary()
 
-        while self.match(TokenType.LEFT_PAREN):
-            arguments, closingBracket = self.separatedSequence(entrySupplier=self.expression, entryName="arguments")
-            expression = expr.Call(expression, closingBracket, arguments)
+        while True:
+            if self.match(TokenType.LEFT_PAREN):
+                arguments, closingBracket = self.separatedSequence(entrySupplier=self.expression, entryName="arguments")
+                expression = expr.Call(expression, closingBracket, arguments)
+            elif self.match(TokenType.DOT):
+                name = self.consume(TokenType.IDENTIFIER, "Expect property name after '.'.")
+                expression = expr.Get(expression, name)
+            else:
+                break
 
         return expression
 
@@ -267,6 +290,9 @@ class Parser:
         
         if self.match(TokenType.IDENTIFIER):
             return expr.Variable(self.previous())
+        
+        if self.match(TokenType.THIS):
+            return expr.This(self.previous())
 
         # anonymous function
         if self.check(TokenType.FUN) and self.checkNext(TokenType.LEFT_PAREN):

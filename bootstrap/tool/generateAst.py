@@ -90,7 +90,10 @@ generate("Expr", [
     "Assign   : Token name, Expr value",
     "Logical  : Expr left, Token operator, Expr right",
     "Call     : Expr callee, Token paren, list[Expr] arguments",
-    "FunctionLiteral : list[Token] params, list[Stmt] body"
+    "Get      : Expr object, Token name",
+    "FunctionLiteral : list[Token] params, list[Stmt] body",
+    "Set      : Expr object, Token name, Expr value",
+    "This     : Token keyword",
 ])
 
 generate("Stmt", [
@@ -102,7 +105,9 @@ generate("Stmt", [
       "While      : Expr condition, Stmt body",
       "Throwable  : Token token",
       "FunctionDef   : Token name, FunctionLiteral callable",
-      "Return     : Token keyword, Expr value"
+      "Return     : Token keyword, Expr value",
+      "Class      : Token name, list[FunctionDef] methods",
+      
 ])
 
 for current, code in generated_code.items():

@@ -75,6 +75,45 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def execute(self, statement: stmt.Stmt) -> None:
         statement.accept(self)
 
+    def visitClassStmt(self, stmt: stmt.Class):
+        self.currentScope.define(stmt.name, None)  # allow backward reference of yourself. TODO: can i remove this when i split up the resolver?
+
+        # methods are not just shoved in a field.
+        # because we want to treat them differently later to inject 'this' in a new environment when referenced.
+        methods: dict[str, LoxFunction] = {}
+        for method in stmt.methods:
+            name = stmt.name.lexeme + "::" + method.name.lexeme  # just used for string representation when printed
+            isInitializer = method.name.lexeme == "init"
+            func = LoxFunction(method.callable, self.currentScope, name, isInitializer=isInitializer)
+            methods[method.name.lexeme] = func
+        
+        klass = LoxClass(stmt.name.lexeme, methods)
+        self.currentScope.define(stmt.name, klass)
+
+    def visitGetExpr(self, expr: expr.Get) -> Any:
+        instance = self.evaluate(expr.object)
+        # TODO: this is where i could inject methods on primitive types
+        if isinstance(instance, LoxInstance):
+            return instance.get(expr.name)
+        
+        raise LoxRuntimeError(expr.name, "Only instances have properties.")  # terminology: properties refers to fields and methods? 
+    
+    def visitSetExpr(self, expr: expr.Set) -> Any:
+        instance = self.evaluate(expr.object)
+
+        if isinstance(instance, LoxInstance):
+            # the right side is only evaluated if the left was actually an instance of a class.
+            # i guess it would be visible behaviour if the right was a function with a side effect 
+            # and you were using try/catch over the error to treat primitives differently. 
+            value = self.evaluate(expr.value)
+            instance.set(expr.name, value)
+            return value
+        
+        raise LoxRuntimeError(expr.name, "Only instances have fields.")
+    
+    def visitThisExpr(self, expr: expr.This) -> Any:
+        return self.lookUpVariable(expr.keyword, expr)
+    
     def visitReturnStmt(self, stmt: stmt.Return):
         value = self.evaluate(stmt.value)
         raise LoxReturn(stmt.keyword, value)
@@ -250,6 +289,9 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def stringify(self, value) -> str:
         s = str(value)
 
+        if value is None:
+            return "nil"
+
         if isinstance(value, bool):
             return s.lower()
         
@@ -262,11 +304,13 @@ class LoxFunction(LoxCallable):
     callable: expr.FunctionLiteral
     closure: Environment
     name: str
+    isInitializer: bool
 
-    def __init__(self, callable: expr.FunctionLiteral, closure: Environment, name: str) -> None:
+    def __init__(self, callable: expr.FunctionLiteral, closure: Environment, name: str, isInitializer = False) -> None:
         self.callable = callable
         self.closure = closure
         self.name = name
+        self.isInitializer = isInitializer
 
     def call(self, interpreter: Interpreter, arguments: list) -> Any:
         environment = Environment(self.closure)
@@ -274,14 +318,88 @@ class LoxFunction(LoxCallable):
         for i, identifier in enumerate(self.callable.params):
             environment.define(identifier, arguments[i])
         
+        result = None
         try:
             interpreter.executeBlock(self.callable.body, environment)
-            return None
         except LoxReturn as returnValue:
-            return returnValue.value
+            result = returnValue.value
+        
+        # constructors return 'this' implicitly, even when called directly.
+        # not returning values in constructor is enforced by static analysis.
+        if self.isInitializer and result is None:
+            result = self.closure.getAt(0, "this")
+        
+        return result
 
     def arity(self) -> int:
         return len(self.callable.params)
     
+    def bind(self, instance: "LoxInstance") -> "LoxFunction":
+        env = Environment(self.closure)
+        env.rawDefine("this", instance)
+        return LoxFunction(self.callable, env, self.name, isInitializer=self.isInitializer)
+    
     def __str__(self) -> str:
         return "<fn " + self.name + ">"
+
+
+class LoxInstance:
+    klass: "LoxClass"
+    fields: dict[str, Any]
+
+    def __init__(self, klass: "LoxClass"):
+        self.klass = klass
+        self.fields = {}
+    
+    def get(self, name: Token) -> Any:
+        if name.lexeme in self.fields:
+            return self.fields[name.lexeme]
+        
+        method = self.klass.findMethod(name.lexeme)
+        if method is not None:
+            return method.bind(self)
+
+        # If we were more like JS it would just return nil.
+        # Maybe if i switch to more static checking i could make the interpreter more forgiving.
+        # but then compiling to readable version of stricter language would't work without wrapping everything in a stupid way
+        raise LoxRuntimeError(name, "Undefined property '" + name.lexeme + "'.")
+    
+    def set(self, name: Token, value: Any):
+        self.fields[name.lexeme] = value
+    
+    def __str__(self) -> str:
+        return "<inst " + self.klass.name + ">"
+
+
+class LoxClass(LoxCallable):
+    name: str
+    methods: dict[str, LoxFunction]
+
+    def __init__(self, name: str, methods: dict[str, LoxFunction]):
+        self.name = name
+        self.methods = methods
+    
+    def findMethod(self, name: str) -> LoxFunction | None:  # split to do inheritance later
+        if not name in self.methods:
+            return None
+        return self.methods[name]
+    
+    def call(self, interpreter: Interpreter, arguments: list) -> LoxInstance:
+        instance = LoxInstance(self)
+
+        # run the constructor 
+        initializer = self.findMethod("init")
+        if initializer is not None:
+            initializer.bind(instance).call(interpreter, arguments)
+        
+        return instance
+    
+    def arity(self) -> int:
+        initializer = self.findMethod("init")
+        if initializer is None:
+            return 0
+        else:
+            return initializer.arity()
+    
+    def __str__(self) -> str:
+        return "<cls " + self.name + ">"

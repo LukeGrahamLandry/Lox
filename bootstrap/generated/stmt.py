@@ -97,6 +97,17 @@ class Return(Stmt):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitReturnStmt(self)
 
+class Class(Stmt):
+    name: Token
+    methods: list[FunctionDef]
+
+    def __init__(self, name: Token, methods: list[FunctionDef]):
+      self.name = name
+      self.methods = methods
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitClassStmt(self)
+
 
 class Visitor:
     def visitExpressionStmt(self, stmt: Expression) -> Any:
@@ -117,5 +128,7 @@ class Visitor:
         raise NotImplementedError()
     def visitReturnStmt(self, stmt: Return) -> Any:
         raise NotImplementedError()
+    def visitClassStmt(self, stmt: Class) -> Any:
+        raise NotImplementedError()
 
-__all__ = ['Stmt', 'Expression', 'Print', 'Var', 'Block', 'If', 'While', 'Throwable', 'FunctionDef', 'Return']
+__all__ = ['Stmt', 'Expression', 'Print', 'Var', 'Block', 'If', 'While', 'Throwable', 'FunctionDef', 'Return', 'Class']

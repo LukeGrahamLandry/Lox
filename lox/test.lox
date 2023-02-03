@@ -92,13 +92,20 @@ test(1);
 
 print clock();
 
-var x = 1;
-while (x < 10){
-    print x;
+class Cake {
+  fun init(suffix){
+    this.suffix = suffix;
+  }
 
-    if (x > 5){
-        break;
-    }
-
-    x = x + 1;
+  fun taste(extra) {
+    var adjective = extra + " delicious " + this.suffix;
+    print "The " + this.flavor + " cake is " + adjective;
+  }
 }
+
+var cake = Cake("!");
+cake.flavor = "chocolate";
+cake.taste("very");
+
+print cake.init(".");
+print cake.taste("again");

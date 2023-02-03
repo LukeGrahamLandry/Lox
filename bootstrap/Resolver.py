@@ -52,12 +52,19 @@ class DictStack:
 class FunctionType(Enum):
     NONE = auto()
     FUNCTION = auto()
+    METHOD = auto()
+    INITIALIZER = auto()
+
+class ClassType(Enum):
+    NONE = auto()
+    CLASS = auto()
 
 class Resolver(expr.Visitor, stmt.Visitor):
     interpreter: Interpreter
     scopes: DictStack
     errors: list[LoxSyntaxError]
-    currentFunction = FunctionType
+    currentFunction: FunctionType
+    currentClass: ClassType
     currentLoopDepth: int
     activeJumpStatement: Token | None
 
@@ -66,6 +73,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
         self.scopes = DictStack()
         self.errors = []
         self.currentFunction = FunctionType.NONE
+        self.currentClass = ClassType.NONE
         self.currentLoopDepth = 0
         self.activeJumpStatement = None
     
@@ -181,6 +189,8 @@ class Resolver(expr.Visitor, stmt.Visitor):
     def visitReturnStmt(self, stmt: stmt.Return):
         if self.currentFunction == FunctionType.NONE:
             self.error(stmt.keyword, "Can't return from top-level code.")
+        elif self.currentFunction == FunctionType.INITIALIZER and not (isinstance(stmt.value, expr.Literal) and stmt.value.value is None):
+            self.error(stmt.keyword, "Can't return a value from an initializer.")
         else:
             self.activeJumpStatement = stmt.keyword
         
@@ -223,3 +233,39 @@ class Resolver(expr.Visitor, stmt.Visitor):
             self.error(stmt.token, "Can't jump from outside loop.")
         else:
             self.activeJumpStatement = stmt.token
+
+    def visitClassStmt(self, stmt: stmt.Class):
+        enclosing = self.currentClass
+        self.currentClass = ClassType.CLASS
+
+        self.declare(stmt.name)
+        self.define(stmt.name)
+
+        self.beginScope()
+        self.scopes.put("this", True)
+        self.scopes.markUsed(self.scopes.size() - 1, "this")  # don't worry about unused 'this' variable
+
+        for method in stmt.methods:
+            declaration = FunctionType.METHOD
+            if method.name.lexeme == "init":
+                declaration = FunctionType.INITIALIZER
+            
+            self.resolveFunction(method.callable, declaration)
+        
+        self.endScope()
+        self.currentClass = enclosing
+
+    def visitGetExpr(self, expr: expr.Get):
+        # TODO: static field checking. currently its done dynamically so we just ignore and trust that it will exist at runtime
+        self.resolveExpr(expr.object)
+    
+    def visitSetExpr(self, expr: expr.Set):
+        # TODO: static field checking 
+        self.resolveExpr(expr.object)
+        self.resolveExpr(expr.value)
+    
+    def visitThisExpr(self, expr: expr.This):
+        if self.currentClass == ClassType.NONE:
+            self.error(expr.keyword, "Can't use 'this' outside of a class.")
+        else:
+            self.resolveLocal(expr, expr.keyword)
