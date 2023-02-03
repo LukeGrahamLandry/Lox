@@ -5,9 +5,14 @@ Based on https://craftinginterpreters.com
 - block comments (/* ... */)
 - exponent operator (**) 
 - jump keywords for loops (break, continue)
-- anonymous functions
+- anonymous functions (`fun (a, b) {return a + b;}`)
 - more native functions
     - environment: returns string of all variables
+- more static analysis errors
+    - jump keyword outside loop
+    - unused function or local variable
+    - access undefined variable
+    - unreachable code after return/break/continue statement
 
 ## Scanner
 

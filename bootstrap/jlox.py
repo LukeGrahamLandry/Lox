@@ -2,7 +2,8 @@
 
 import sys
 
-from Token import Token
+from Token import Token, TokenType
+import json
 
 class LoxRuntimeError(RuntimeError):
     displayMsg: str
@@ -19,6 +20,15 @@ class LoxSyntaxError:
     displayMsg: str
     def __init__(self, line: int, message: str, where: str = ""):
         self.displayMsg = "[line " + str(line) + "] Error" + where + ": " + message
+    
+    @staticmethod
+    def of(token: Token, message: str):
+        if (token.type == TokenType.EOF):
+            where = " at end"
+        else:
+            where = " at '" + token.lexeme + "'"
+
+        return LoxSyntaxError(token.line, message, where)
 
     def __str__(self) -> str:
         return self.displayMsg
@@ -35,6 +45,7 @@ if __name__ == "__main__":
     from Parser import Parser
     from AstPrinter import AstPrinter
     from Interpreter import Interpreter
+    from Resolver import Resolver
 
     interpreter = Interpreter()
 
@@ -50,6 +61,11 @@ if __name__ == "__main__":
         # print(AstPrinter().printStatement(statements))
         # print("========")
         printErrorsAndMaybeExit(scanner.errors + parser.errors, 65)
+
+        resolver = Resolver(interpreter)
+        resolver.resolveStmt(statements)
+
+        printErrorsAndMaybeExit(resolver.errors, 1)
         
         interpreter.interpret(statements)
         printErrorsAndMaybeExit(interpreter.errors, 70)

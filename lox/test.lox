@@ -5,7 +5,7 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
-for (var i = 0; i < 30; i = i + 1) {
+for (var i = 0; i < 6; i = i + 1) {
   print fib(i);
 }
 
@@ -37,13 +37,68 @@ thrice(fun (a) {
   print a;
 });
 
+while (true){
+    break;
+}
+
 var a = "global";
 {
+  var b = "s";
   fun showA() {
-    print a;
+    print a + b;
   }
-
   showA();
   var a = "block";
   showA();
+  print a;
+}
+
+{
+    var a = "test";
+    print a;
+    print environment();
+}
+
+
+/*
+// this doesn't work anymore :(
+// TODO: check final jlox 
+// i think i might be that they let it happen in global scope but not inner
+// but in mine the script happens in a block with only native functions in the real global scope
+// two passes?
+
+fun isOdd(n) {
+  if (n == 0) return false;
+  return isEven(n - 1);
+}
+
+fun isEven(n) {
+  if (n == 0) return true;
+  return isOdd(n - 1);
+}
+
+print isOdd(5);
+*/
+
+var apsa = 0;
+
+print 1;
+
+fun test(a){
+    print apsa + a;
+}
+    
+test(1);
+
+print clock();
+
+var x = 1;
+while (x < 10){
+    print x;
+
+    if (x > 5){
+        break;
+    }
+
+    x = x + 1;
 }

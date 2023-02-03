@@ -1,5 +1,3 @@
-from ast import In, arguments
-from glob import glob
 from typing import Any
 import generated.expr as expr
 import generated.stmt as stmt
@@ -36,15 +34,27 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     currentScope: Environment
     globalScope: Environment
     errors: list[LoxRuntimeError]
+    locals: dict[expr.Expr, int]
 
     def __init__(self):
         self.globalScope = Environment()
         self.currentScope = self.globalScope
         self.errors = []
+        self.locals = {}
 
         for name, value in self.getLoxGlobals().items():
             self.globalScope.rawDefine(name, value)
     
+    def resolve(self, expr: expr.Expr, depth: int):
+        self.locals[expr] = depth
+    
+    def lookUpVariable(self, name: Token, expr: expr.Expr) -> Any:
+        if expr in self.locals:
+            distance = self.locals[expr]
+            return self.currentScope.getAt(distance, name.lexeme)
+        else:
+            return self.globalScope.get(name)
+
     def getLoxGlobals(self) -> dict[str, Any]:
         return {
             "clock": natives.Clock(),
@@ -74,7 +84,7 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         self.currentScope.define(stmt.name, func)
     
     def visitThrowableStmt(self, stmt: stmt.Throwable):
-        raise LoxExpectedException(stmt.token)
+        raise LoxExpectedException(stmt.token)  # break / continue
 
     def visitWhileStmt(self, stmt: stmt.While):
         try:
@@ -148,11 +158,17 @@ class Interpreter(expr.Visitor, stmt.Visitor):
 
     def visitAssignExpr(self, expr: expr.Assign) -> Any:
         value = self.evaluate(expr.value)
-        self.currentScope.assign(expr.name, value)
+
+        if expr in self.locals:
+            distance = self.locals[expr]
+            self.currentScope.assignAt(distance, expr.name.lexeme, value)
+        else:
+            self.globalScope.assign(expr.name, value)
+        
         return value
 
     def visitVariableExpr(self, expr: expr.Variable) -> Any:
-        return self.currentScope.get(expr.name)
+        return self.lookUpVariable(expr.name, expr)
 
     def visitBinaryExpr(self, expr: expr.Binary):
         left = self.evaluate(expr.left)

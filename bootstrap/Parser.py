@@ -18,13 +18,11 @@ max_function_args_count = 255
 class Parser:
     tokens: list[Token]
     current: int
-    currentLoopDepth: int
     errors: list[LoxSyntaxError]
 
     def __init__(self, tokens: list[Token]) -> None:
         self.tokens = tokens
         self.current = 0
-        self.currentLoopDepth = 0
         self.errors = []
 
         self.exponent = self.createBinaryPrecedenceLevel(expr.Binary, [TokenType.EXPONENT], self.unary)
@@ -93,19 +91,13 @@ class Parser:
             if self.match(type):
                 token = self.previous()
                 statement = supplier(token)
-                if self.currentLoopDepth <= 0 and token.type in loopJumpTokens:
-                    # TODO: if i add new types of throwable, check if its a loop one
-                    raise self.error(token, "Unexpected jump outside loop.")
                 self.consume(TokenType.SEMICOLON, "Expect ';' after keyword statement.")
                 return statement
 
         return self.expressionStatement(stmt.Expression)
     
     def loopBodyStatement(self) -> stmt.Stmt:
-        self.currentLoopDepth += 1
-        statement = self.statement()
-        self.currentLoopDepth -= 1
-        return statement
+        return self.statement()
     
     def expressionStatement(self, factory) -> stmt.Stmt:
         value = self.expression()
@@ -325,14 +317,7 @@ class Parser:
         raise self.error(self.peek(), message)
     
     def error(self, token: Token, message: str):
-        if (token.type == TokenType.EOF):
-            where = " at end"
-        else:
-            where = " at '" + token.lexeme + "'"
-
-        e = LoxSyntaxError(token.line, message, where)
-        self.errors.append(e)
-        
+        self.errors.append(LoxSyntaxError.of(token, message))
         return RuntimeError()
 
     def synchronize(self): 
