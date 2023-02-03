@@ -1,6 +1,7 @@
 from generated.expr import *
 import generated.stmt as stmt
 from Token import TokenType
+from generated.expr import Visitor
 
 class AstPrinter(Visitor, stmt.Visitor):
     indent: int
@@ -35,6 +36,9 @@ class AstPrinter(Visitor, stmt.Visitor):
         if expr.value == None:
              return "nil"
         return str(expr.value)
+    
+    def visitFunctionLiteralExpr(self, expr: FunctionLiteral) -> str:
+        return "anon_func"
 
     def visitUnaryExpr(self, expr: Unary) -> str:
         return self.parenthesize(expr.operator.lexeme, expr.right)
@@ -66,7 +70,7 @@ class AstPrinter(Visitor, stmt.Visitor):
         
         self.indent -= 1
         
-        return s
+        return s[:-1]
     
     def visitIfStmt(self, stmt: stmt.If) -> str:
         return "if " + self.print(stmt.condition) + " then {" + self.printStatement(stmt.thenBranch) + "} else {" + self.printStatement(stmt.elseBranch) + "}"
@@ -77,8 +81,8 @@ class AstPrinter(Visitor, stmt.Visitor):
     def visitThrowableStmt(self, stmt: stmt.Throwable) -> str:
         return "throw (" + str(stmt.token.type) + ")"
     
-    def visitFunctionStmt(self, statement: stmt.Function) -> str:
-        return "(func_def " + statement.name.lexeme + " " + str([x.lexeme for x in statement.params]) + ") " + self.printStatement(stmt.Block(statement.body))
+    def visitFunctionDefStmt(self, statement: stmt.FunctionDef) -> str:
+        return "(func_def " + statement.name.lexeme + " " + str([x.lexeme for x in statement.callable.params]) + ") " + self.printStatement(stmt.Block(statement.callable.body))
 
     def visitReturnStmt(self, stmt: stmt.Return) -> str:
         return self.parenthesize("return", stmt.value)

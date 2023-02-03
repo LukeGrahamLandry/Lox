@@ -69,8 +69,8 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         value = self.evaluate(stmt.value)
         raise LoxReturn(stmt.keyword, value)
     
-    def visitFunctionStmt(self, stmt: stmt.Function):
-        func = LoxFunction(stmt, self.currentScope)
+    def visitFunctionDefStmt(self, stmt: stmt.FunctionDef):
+        func = LoxFunction(stmt.callable, self.currentScope, name=stmt.name.lexeme)
         self.currentScope.define(stmt.name, func)
     
     def visitThrowableStmt(self, stmt: stmt.Throwable):
@@ -146,7 +146,6 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         
         return self.evaluate(expr.right)
 
-
     def visitAssignExpr(self, expr: expr.Assign) -> Any:
         value = self.evaluate(expr.value)
         self.currentScope.assign(expr.name, value)
@@ -201,6 +200,9 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def visitLiteralExpr(self, expr: expr.Literal):
         return expr.value
 
+    def visitFunctionLiteralExpr(self, expr: expr.FunctionLiteral):
+        return LoxFunction(expr, self.currentScope, name="anonymous")
+
     def visitUnaryExpr(self, expr: expr.Unary):
         value = self.evaluate(expr.right)
 
@@ -241,27 +243,29 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         return s
 
 class LoxFunction(LoxCallable):
-    declaration: stmt.Function
+    callable: expr.FunctionLiteral
     closure: Environment
+    name: str
 
-    def __init__(self, declaration: stmt.Function, closure: Environment) -> None:
-        self.declaration = declaration
+    def __init__(self, callable: expr.FunctionLiteral, closure: Environment, name: str) -> None:
+        self.callable = callable
         self.closure = closure
+        self.name = name
 
     def call(self, interpreter: Interpreter, arguments: list) -> Any:
         environment = Environment(self.closure)
 
-        for i, identifier in enumerate(self.declaration.params):
+        for i, identifier in enumerate(self.callable.params):
             environment.define(identifier, arguments[i])
         
         try:
-            interpreter.executeBlock(self.declaration.body, environment)
+            interpreter.executeBlock(self.callable.body, environment)
             return None
         except LoxReturn as returnValue:
             return returnValue.value
 
     def arity(self) -> int:
-        return len(self.declaration.params)
+        return len(self.callable.params)
     
     def __str__(self) -> str:
-        return "<fn " + self.declaration.name.lexeme + ">"
+        return "<fn " + self.name + ">"

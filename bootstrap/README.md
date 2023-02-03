@@ -5,7 +5,8 @@ Based on https://craftinginterpreters.com
 - block comments (/* ... */)
 - exponent operator (**) 
 - jump keywords for loops (break, continue)
-- native functions
+- anonymous functions
+- more native functions
     - environment: returns string of all variables
 
 ## Scanner

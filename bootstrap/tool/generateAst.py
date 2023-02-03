@@ -24,11 +24,13 @@ def generate(baseName: str, entries: list[str]):
 
     output("from typing import Any")
     output("from Token import Token")
+    output("from generated.s import Stmt")
     output("")
-    output(f"class {baseName}:")
-    output("    def accept(self, visitor: Any):")
-    output("        raise NotImplementedError()")
-    output("")
+    if baseName != "Stmt":
+        output(f"class {baseName}:")
+        output("    def accept(self, visitor: Any):")
+        output("        raise NotImplementedError()")
+        output("")
 
     for entry in entries:
         className = entry.split(":")[0].strip()
@@ -38,11 +40,16 @@ def generate(baseName: str, entries: list[str]):
     
     output("")
     output("class Visitor:")
+    entryNames = [baseName]
     for entry in entries:
         className = entry.split(":")[0].strip()
         fields = entry.split(":")[1].strip().split(", ")
+        entryNames.append(className)
 
         generateVisitor(baseName, className, [Field(s) for s in fields])
+    
+    output("")
+    output("__all__ = " + str(entryNames))
 
 def generateType(baseName: str, className: str, fields: list[Field]):
     output(f"class {className}({baseName}):")
@@ -66,6 +73,14 @@ def generateVisitor(baseName: str, className: str, fields: list[Field]):
     output("        raise NotImplementedError()")
 
 
+generated_code["s"] = """
+from typing import Any
+
+class Stmt:
+    def accept(self, visitor: Any):
+        raise NotImplementedError()
+"""
+
 generate("Expr", [
     "Binary   : Expr left, Token operator, Expr right",
     "Grouping : Expr expression",
@@ -74,7 +89,8 @@ generate("Expr", [
     "Variable : Token name",
     "Assign   : Token name, Expr value",
     "Logical  : Expr left, Token operator, Expr right",
-    "Call     : Expr callee, Token paren, list[Expr] arguments"
+    "Call     : Expr callee, Token paren, list[Expr] arguments",
+    "FunctionLiteral : list[Token] params, list[Stmt] body"
 ])
 
 generate("Stmt", [
@@ -85,7 +101,7 @@ generate("Stmt", [
       "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
       "While      : Expr condition, Stmt body",
       "Throwable  : Token token",
-      "Function   : Token name, list[Token] params, list[Stmt] body",
+      "FunctionDef   : Token name, FunctionLiteral callable",
       "Return     : Token keyword, Expr value"
 ])
 

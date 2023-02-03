@@ -1,5 +1,13 @@
-print "time:";
-print clock();
+print "fib numbers:";
+
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 30; i = i + 1) {
+  print fib(i);
+}
 
 print "count:";
 
@@ -17,15 +25,25 @@ var counter = makeCounter();
 counter();
 counter();
 
-print "fib numbers:";
+print "thrice:";
 
-fun fib(n) {
-  if (n <= 1) return n;
-  return fib(n - 2) + fib(n - 1);
+fun thrice(fn) {
+  for (var i = 1; i <= 3; i = i + 1) {
+    fn(i);
+  }
 }
 
-for (var i = 0; i < 6; i = i + 1) {
-  print fib(i);
-}
+thrice(fun (a) {
+  print a;
+});
 
-print environment();
+var a = "global";
+{
+  fun showA() {
+    print a;
+  }
+
+  showA();
+  var a = "block";
+  showA();
+}

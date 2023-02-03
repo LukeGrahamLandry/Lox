@@ -2,10 +2,7 @@ from generated.expr import *
 from Token import *
 from typing import Any
 from Token import Token
-
-class Stmt:
-    def accept(self, visitor: Any):
-        raise NotImplementedError()
+from generated.s import Stmt
 
 class Expression(Stmt):
     expression: Expr
@@ -78,18 +75,16 @@ class Throwable(Stmt):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitThrowableStmt(self)
 
-class Function(Stmt):
+class FunctionDef(Stmt):
     name: Token
-    params: list[Token]
-    body: list[Stmt]
+    callable: FunctionLiteral
 
-    def __init__(self, name: Token, params: list[Token], body: list[Stmt]):
+    def __init__(self, name: Token, callable: FunctionLiteral):
       self.name = name
-      self.params = params
-      self.body = body
+      self.callable = callable
 
     def accept(self, visitor: Any) -> Any:
-        return visitor.visitFunctionStmt(self)
+        return visitor.visitFunctionDefStmt(self)
 
 class Return(Stmt):
     keyword: Token
@@ -118,7 +113,9 @@ class Visitor:
         raise NotImplementedError()
     def visitThrowableStmt(self, stmt: Throwable) -> Any:
         raise NotImplementedError()
-    def visitFunctionStmt(self, stmt: Function) -> Any:
+    def visitFunctionDefStmt(self, stmt: FunctionDef) -> Any:
         raise NotImplementedError()
     def visitReturnStmt(self, stmt: Return) -> Any:
         raise NotImplementedError()
+
+__all__ = ['Stmt', 'Expression', 'Print', 'Var', 'Block', 'If', 'While', 'Throwable', 'FunctionDef', 'Return']

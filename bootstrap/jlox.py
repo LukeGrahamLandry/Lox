@@ -47,8 +47,8 @@ if __name__ == "__main__":
         tokens = scanner.scanTokens()
         parser = Parser(tokens)
         statements = parser.parse()
-        print(AstPrinter().printStatement(statements))
-        print("========")
+        # print(AstPrinter().printStatement(statements))
+        # print("========")
         printErrorsAndMaybeExit(scanner.errors + parser.errors, 65)
         
         interpreter.interpret(statements)

@@ -1,5 +1,6 @@
 from typing import Any
 from Token import Token
+from generated.s import Stmt
 
 class Expr:
     def accept(self, visitor: Any):
@@ -93,6 +94,17 @@ class Call(Expr):
     def accept(self, visitor: Any) -> Any:
         return visitor.visitCallExpr(self)
 
+class FunctionLiteral(Expr):
+    params: list[Token]
+    body: list[Stmt]
+
+    def __init__(self, params: list[Token], body: list[Stmt]):
+      self.params = params
+      self.body = body
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitFunctionLiteralExpr(self)
+
 
 class Visitor:
     def visitBinaryExpr(self, expr: Binary) -> Any:
@@ -111,3 +123,7 @@ class Visitor:
         raise NotImplementedError()
     def visitCallExpr(self, expr: Call) -> Any:
         raise NotImplementedError()
+    def visitFunctionLiteralExpr(self, expr: FunctionLiteral) -> Any:
+        raise NotImplementedError()
+
+__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'FunctionLiteral']
