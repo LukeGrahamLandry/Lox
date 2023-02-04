@@ -44,7 +44,7 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         self.errors = []
         self.locals = {}
         self.metaClass = MetaClass()
-        self.objectClass = LoxClass("Object", {}, superClass=None, metaClass=self.metaClass)
+        self.objectClass = LoxClass("Object", {}, superClass=None, metaClass=self.metaClass)  # i can put like toString or whatever here to let people override it once i do non-dynamic fields 
 
         self.globalScope.rawDefine("Object", self.objectClass)
         for name, value in self.getLoxGlobals().items():
@@ -159,7 +159,7 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         
         superClass: LoxClass = self.currentScope.getAt(distance, "super")
         instance: LoxInstance = self.currentScope.getAt(distance - 1, "this")
-        
+
         method = superClass.findMethod(expr.method.lexeme)
         if method is None:
             raise LoxRuntimeError(expr.method, "Undefined property '" + expr.method.lexeme + "'.")
