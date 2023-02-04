@@ -141,13 +141,26 @@ class This(Expr):
 class ClassLiteral(Expr):
     methods: list[Any]
     staticFields: list[Any]
+    superclass: Variable
 
-    def __init__(self, methods: list[Any], staticFields: list[Any]):
+    def __init__(self, methods: list[Any], staticFields: list[Any], superclass: Variable):
       self.methods = methods
       self.staticFields = staticFields
+      self.superclass = superclass
 
     def accept(self, visitor: Any) -> Any:
         return visitor.visitClassLiteralExpr(self)
+
+class Super(Expr):
+    keyword: Token
+    method: Token
+
+    def __init__(self, keyword: Token, method: Token):
+      self.keyword = keyword
+      self.method = method
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visitSuperExpr(self)
 
 
 class Visitor:
@@ -177,5 +190,7 @@ class Visitor:
         raise NotImplementedError()
     def visitClassLiteralExpr(self, expr: ClassLiteral) -> Any:
         raise NotImplementedError()
+    def visitSuperExpr(self, expr: Super) -> Any:
+        raise NotImplementedError()
 
-__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'Get', 'FunctionLiteral', 'Set', 'This', 'ClassLiteral']
+__all__ = ['Expr', 'Binary', 'Grouping', 'Literal', 'Unary', 'Variable', 'Assign', 'Logical', 'Call', 'Get', 'FunctionLiteral', 'Set', 'This', 'ClassLiteral', 'Super']

@@ -1,6 +1,6 @@
-Based on https://craftinginterpreters.com
+Based on [Crafting Interpreters](https://craftinginterpreters.com), jlox implemented in python.
 
-### Additions to book's jlox
+### Language Additions
 
 - block comments (/* ... */)
 - exponent operator (**) 

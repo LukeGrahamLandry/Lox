@@ -132,38 +132,48 @@ class Parser:
 
     def classDeclaration(self) -> stmt.Class:
         name = self.consume(TokenType.IDENTIFIER, "Expect class name.")
-        self.consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
+
         klass = self.classBody()
-        return stmt.Class(name, klass.methods, klass.staticFields)
+        return stmt.Class(name, klass)
     
     def classBody(self) -> expr.ClassLiteral:
+        if self.match(TokenType.LESS):
+            self.consume(TokenType.IDENTIFIER, "Expect superclass name.")
+            superclass = expr.Variable(self.previous())
+        else:
+            superclass = expr.Variable(Token(TokenType.IDENTIFIER, "Object", None, self.previous().line))
+
+        self.consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
+
         methods: list[stmt.FunctionDef] = []
         staticFields: list[stmt.Var] = []
 
         while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
-            if self.match(TokenType.FUN):
-                methods.append(self.functionDefinition("method"))
-                continue
-            elif self.match(TokenType.STATIC):
-                if self.match(TokenType.FUN):
-                    func = self.functionDefinition("method")
-                    staticFields.append(stmt.Var(func.name, func.callable))
-                    continue
+            if self.match(TokenType.STATIC):
                 if self.match(TokenType.VAR):
                     staticFields.append(self.varDeclaration())
-                    continue
-                if self.match(TokenType.CLASS):
+                    
+                elif self.match(TokenType.CLASS):
                     klass = self.classDeclaration()
-                    staticFields.append(stmt.Var(klass.name, expr.ClassLiteral(klass.methods, klass.staticFields)))
-                    continue
-
-                raise self.error(self.peek(), "Static class members must begin with 'fun', 'var' or 'class'")
+                    staticFields.append(stmt.Var(klass.name, klass.klass))
+                    
+                elif self.match(TokenType.FUN):
+                    func = self.functionDefinition("method")
+                    staticFields.append(stmt.Var(func.name, func.callable))
+                    
+                else:
+                    raise self.error(self.peek(), "Static class members must begin with 'fun', 'var' or 'class'")
             
-            raise self.error(self.peek(), "Statements in class body must begin with 'fun' or 'static'")
+            else:
+                self.match(TokenType.FUN)  # specifying is encouraged but we assume anyway for consistency with lox
+                methods.append(self.functionDefinition("method"))
+
+            # changed my mind about this rule so that i can use the book's test/examples without tedious editing
+            # raise self.error(self.peek(), "Statements in class body must begin with 'fun' or 'static'")
         
         self.consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
 
-        return expr.ClassLiteral(methods, staticFields)
+        return expr.ClassLiteral(methods, staticFields, superclass)
 
     # i might actually want a tree node for this later so that i keep the information for the transpiler 
     def forStatement(self) -> stmt.Stmt:
@@ -314,6 +324,12 @@ class Parser:
         
         if self.match(TokenType.THIS):
             return expr.This(self.previous())
+        
+        if self.match(TokenType.SUPER):
+            keyword = self.previous()
+            self.consume(TokenType.DOT, "Expect '.' after 'super'.")
+            method = self.consume(TokenType.IDENTIFIER, "Expect superclass method name.")
+            return expr.Super(keyword, method)
 
         # anonymous function
         if self.check(TokenType.FUN) and self.checkNext(TokenType.LEFT_PAREN):
@@ -331,13 +347,11 @@ class Parser:
             return expr.FunctionLiteral(parameters, body.statements)
 
         # anonymous class
-        if self.check(TokenType.CLASS) and self.checkNext(TokenType.LEFT_BRACE):
-            # consume: class {
-            self.advance()
+        if self.check(TokenType.CLASS) and not self.checkNext(TokenType.IDENTIFIER):
+            # consume: class 
             self.advance()
 
             return self.classBody()
-
 
         raise self.error(self.peek(), "Expect expression.")
     

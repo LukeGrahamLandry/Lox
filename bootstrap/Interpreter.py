@@ -35,6 +35,8 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     globalScope: Environment
     errors: list[LoxRuntimeError]
     locals: dict[expr.Expr, int]
+    metaClass: "LoxClass"
+    objectClass: "LoxClass"
 
     def __init__(self):
         self.globalScope = Environment()
@@ -42,7 +44,9 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         self.errors = []
         self.locals = {}
         self.metaClass = MetaClass()
+        self.objectClass = LoxClass("Object", {}, superClass=None, metaClass=self.metaClass)
 
+        self.globalScope.rawDefine("Object", self.objectClass)
         for name, value in self.getLoxGlobals().items():
             self.globalScope.rawDefine(name, value)
     
@@ -77,9 +81,13 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         statement.accept(self)
 
     def visitClassStmt(self, stmt: stmt.Class):
-        self.declareClass(stmt.methods, stmt.staticFields, classNameToken=stmt.name)
+        self.declareClass(stmt.klass, classNameToken=stmt.name)
     
-    def declareClass(self, methodDefs: list[stmt.FunctionDef], staticFieldDefs: list[stmt.Var], classNameToken: Token | None = None) -> "LoxClass":
+    def declareClass(self, klassLiteral: expr.ClassLiteral, classNameToken: Token | None = None) -> "LoxClass":
+        superclass = self.evaluate(klassLiteral.superclass)
+        if not isinstance(superclass, LoxClass):
+            raise LoxRuntimeError(klassLiteral.superclass.name, "Superclass must be a class.")
+           
         className = "anon"
         if classNameToken is not None:
             className = classNameToken.lexeme
@@ -87,17 +95,19 @@ class Interpreter(expr.Visitor, stmt.Visitor):
             # TODO: currently since static classes are parsed into var assignment to literal, it wont know its name so you cant refer to it inside
             # recursion for static functions of non static classs works tho 
             # because its not referring to the function as a variable, it has to refer to the class which i carefully allowed self reference for and fields are done at runtime so its fine
-
+        
         # methods are not just shoved in a field.
         # because we want to treat them differently later to inject 'this' in a new environment when referenced.
         methods: dict[str, LoxFunction] = {}
-        for method in methodDefs:
+        methodsScope = Environment(self.currentScope)
+        methodsScope.rawDefine("super", superclass)
+        for method in klassLiteral.methods:
             className = className + "::" + method.name.lexeme  # just used for string representation when printed
             isInitializer = method.name.lexeme == "init"
-            func = LoxFunction(method.callable, self.currentScope, className, isInitializer=isInitializer)
+            func = LoxFunction(method.callable, methodsScope, className, isInitializer=isInitializer)
             methods[method.name.lexeme] = func
         
-        klass = LoxClass(className, methods, self.metaClass)
+        klass = LoxClass(className, methods, superClass=superclass, metaClass=self.metaClass)
         if classNameToken is not None:
             self.currentScope.define(classNameToken, klass)
 
@@ -107,7 +117,7 @@ class Interpreter(expr.Visitor, stmt.Visitor):
         previous = self.currentScope
         try:
             self.currentScope = Environment(self.currentScope)
-            for field in staticFieldDefs:
+            for field in klassLiteral.staticFields:
                 value = self.evaluate(field.initializer)
                 if isinstance(value, LoxFunction):
                     value = LoxFunction(value.callable, self.currentScope, "static " + className + "::" + field.name.lexeme)
@@ -142,12 +152,27 @@ class Interpreter(expr.Visitor, stmt.Visitor):
     def visitThisExpr(self, expr: expr.This) -> Any:
         return self.lookUpVariable(expr.keyword, expr)
     
+    def visitSuperExpr(self, expr: expr.Super) -> Any:
+        distance = self.locals.get(expr)
+        if distance is None:
+            raise LoxRuntimeError(expr.keyword, "Used super outside method?")
+        
+        superClass: LoxClass = self.currentScope.getAt(distance, "super")
+        instance: LoxInstance = self.currentScope.getAt(distance - 1, "this")
+        
+        method = superClass.findMethod(expr.method.lexeme)
+        if method is None:
+            raise LoxRuntimeError(expr.method, "Undefined property '" + expr.method.lexeme + "'.")
+
+        return method.bind(instance)
+
+    
     def visitReturnStmt(self, stmt: stmt.Return):
         value = self.evaluate(stmt.value)
         raise LoxReturn(stmt.keyword, value)
     
     def visitClassLiteralExpr(self, expr: expr.ClassLiteral) -> Any:
-        return self.declareClass(expr.methods, expr.staticFields)
+        return self.declareClass(expr)
 
     def visitFunctionDefStmt(self, stmt: stmt.FunctionDef):
         func = LoxFunction(stmt.callable, self.currentScope, name=stmt.name.lexeme)
@@ -365,6 +390,8 @@ class LoxFunction(LoxCallable):
     def arity(self) -> int:
         return len(self.callable.params)
     
+    # only gets called on methods but like technically it could take any function and decide what object 'this' refers to. 
+    # but for that do be interesting the resolver would have to allow it, and there's no like actual meaning for why you'd want that.
     def bind(self, instance: "LoxInstance") -> "LoxFunction":
         env = Environment(self.closure)
         env.rawDefine("this", instance)
@@ -405,16 +432,22 @@ class LoxInstance:
 class LoxClass(LoxInstance, LoxCallable):
     name: str
     methods: dict[str, LoxFunction]
+    superClass: "LoxClass | None"  # Object and MetaClass do not extend anything
 
-    def __init__(self, name: str, methods: dict[str, LoxFunction], metaClass: "LoxClass"):
+    def __init__(self, name: str, methods: dict[str, LoxFunction], *, superClass: "LoxClass | None", metaClass: "LoxClass"):
         super().__init__(metaClass)
         self.name = name
         self.methods = methods
+        self.superClass = superClass
     
     def findMethod(self, name: str) -> LoxFunction | None:  # split to do inheritance later
-        if not name in self.methods:
-            return None
-        return self.methods[name]
+        if name in self.methods:
+            return self.methods[name]
+        
+        if self.superClass is not None:
+            return self.superClass.findMethod(name)
+        
+        return None
     
     def call(self, interpreter: Interpreter, arguments: list) -> LoxInstance:
         instance = LoxInstance(self)
@@ -436,7 +469,7 @@ class LoxClass(LoxInstance, LoxCallable):
 
 class MetaClass(LoxClass):
     def __init__(self):
-        super().__init__("lang.Class", {}, self)
+        super().__init__("lang.Class", {}, metaClass=self, superClass=None)
     
     def call(self, interpreter: Interpreter, arguments: list) -> LoxInstance:
         raise NotImplementedError()

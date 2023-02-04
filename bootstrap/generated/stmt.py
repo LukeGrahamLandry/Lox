@@ -99,13 +99,11 @@ class Return(Stmt):
 
 class Class(Stmt):
     name: Token
-    methods: list[FunctionDef]
-    staticFields: list[Var]
+    klass: ClassLiteral
 
-    def __init__(self, name: Token, methods: list[FunctionDef], staticFields: list[Var]):
+    def __init__(self, name: Token, klass: ClassLiteral):
       self.name = name
-      self.methods = methods
-      self.staticFields = staticFields
+      self.klass = klass
 
     def accept(self, visitor: Any) -> Any:
         return visitor.visitClassStmt(self)

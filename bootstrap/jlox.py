@@ -3,7 +3,6 @@
 import sys
 
 from Token import Token, TokenType
-import json
 
 class LoxRuntimeError(RuntimeError):
     displayMsg: str

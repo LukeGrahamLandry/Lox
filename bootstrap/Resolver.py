@@ -116,7 +116,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
         
         self.scopes.put(token.lexeme, True)
 
-        print("create on line", token.line, token.lexeme, "at depth", self.scopes.size())
+        # print("create on line", token.line, token.lexeme, "at depth", self.scopes.size())
     
     def error(self, name: Token, message: str):
         self.errors.append(LoxSyntaxError.of(name, message))
@@ -129,7 +129,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
                 self.scopes.markUsed(i, token.lexeme)
                 distance = self.scopes.size() - 1 - i
                 self.interpreter.resolve(expr, distance)
-                print("access on line", token.line, token.lexeme, "at distance", distance)
+                # print("access on line", token.line, token.lexeme, "at distance", distance)
                 return
         
         # the script is its own block and the globalScope only has the native functions so we know all of them ahead of time. 
@@ -238,30 +238,43 @@ class Resolver(expr.Visitor, stmt.Visitor):
         else:
             self.activeJumpStatement = stmt.token
     
-    def resolveClassBody(self, methods: list[stmt.FunctionDef], staticFields: list[stmt.Var]):
+    def resolveClassBody(self, klass: expr.ClassLiteral, name: Token | None = None):
         enclosing = self.currentClass
         self.currentClass = ClassType.CLASS
 
-        self.beginScope()
+        if name is not None and klass.superclass.name.lexeme == name.lexeme:
+            self.error(klass.superclass.name, "A class can't inherit from itself.")
+        
+        # there will always be a superclass because we implicitly injected Object in the Parser
+        self.resolveExpr(klass.superclass)
+
+        # this corresponds to the environment created when the declared
+        self.beginScope() 
+        self.scopes.put("super", True)
+        self.scopes.markUsed(self.scopes.size() - 1, "super")  # don't worry about unused 'super' variable
+        
+        # this corresponds to the environment created when the method is bound to an instance for a call
+        self.beginScope() 
         self.scopes.put("this", True)
         self.scopes.markUsed(self.scopes.size() - 1, "this")  # don't worry about unused 'this' variable
-
-        for method in methods:
+        
+        for method in klass.methods:
             declaration = FunctionType.METHOD
             if method.name.lexeme == "init":
                 declaration = FunctionType.INITIALIZER
             
             self.resolveFunction(method.callable, declaration)
 
-        self.endScope()
+        self.endScope()  # at bind (for this)
+        self.endScope()  # at declaration (for super)
         self.currentClass = enclosing
 
-        # i want to just call resolve to deal with the static's normally.
-        # but that would pollute our the scope so they happen in a fake scope that gets thrown away.
+        # i want to just call resolve to deal with the static things normally.
+        # but that would pollute the outer scope so they happen in a fake scope that gets thrown away.
         # they're accessed as fields on the class instance not from the environment.
-        # but it ends up meaning all the distances are off by one so the interpreter has to add a fake scope as well. 
+        # but it ends up meaning all the distances for globals are off by one so the interpreter has to add a fake scope as well. 
         self.beginScope()
-        for field in staticFields:
+        for field in klass.staticFields:
             self.resolveStmt(field)
             self.scopes.markUsed(self.scopes.size() - 1, field.name.lexeme)  # later code might reference static fields
         self.endScope()
@@ -269,7 +282,7 @@ class Resolver(expr.Visitor, stmt.Visitor):
     def visitClassStmt(self, stmt: stmt.Class):
         self.declare(stmt.name)
         self.define(stmt.name)
-        self.resolveClassBody(stmt.methods, stmt.staticFields)
+        self.resolveClassBody(stmt.klass, name=stmt.name)
         
     def visitGetExpr(self, expr: expr.Get):
         # TODO: static field checking. currently its done dynamically so we just ignore and trust that it will exist at runtime
@@ -287,4 +300,10 @@ class Resolver(expr.Visitor, stmt.Visitor):
             self.resolveLocal(expr, expr.keyword)
 
     def visitClassLiteralExpr(self, expr: expr.ClassLiteral):
-        self.resolveClassBody(expr.methods, expr.staticFields)
+        self.resolveClassBody(expr)
+    
+    def visitSuperExpr(self, expr: expr.Super):
+        if self.currentClass == ClassType.NONE:
+            self.error(expr.keyword, "Can't use 'super' outside of a class.")
+        else:
+            self.resolveLocal(expr, expr.keyword)

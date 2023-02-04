@@ -1,173 +1,34 @@
-print "fib numbers:";
-
-fun fib(n) {
-  if (n <= 1) return n;
-  return fib(n - 2) + fib(n - 1);
-}
-
-for (var i = 0; i < 6; i = i + 1) {
-  print fib(i);
-}
-
-print "count:";
-
-fun makeCounter() {
-  var i = 0;
-  fun count() {
-    i = i + 1;
-    print i;
-  }
-
-  return count;
-}
-
-var counter = makeCounter();
-counter();
-counter();
-
-print "thrice:";
-
-fun thrice(fn) {
-  for (var i = 1; i <= 3; i = i + 1) {
-    fn(i);
+class Doughnut {
+  cook() {
+    print "Fry until golden brown.";
   }
 }
 
-thrice(fun (a) {
-  print a;
-});
-
-while (true){
-    break;
-}
-
-var a = "global";
-{
-  var b = "s";
-  fun showA() {
-    print a + b;
-  }
-  showA();
-  var a = "block";
-  showA();
-  print a;
-}
-
-{
-    var a = "test";
-    print a;
-    print environment();
-}
-
-
-/*
-// this doesn't work anymore :(
-// TODO: check final jlox 
-// i think i might be that they let it happen in global scope but not inner
-// but in mine the script happens in a block with only native functions in the real global scope
-// two passes?
-
-fun isOdd(n) {
-  if (n == 0) return false;
-  return isEven(n - 1);
-}
-
-fun isEven(n) {
-  if (n == 0) return true;
-  return isOdd(n - 1);
-}
-
-print isOdd(5);
-*/
-
-var apsa = 0;
-
-print 1;
-
-fun test(a){
-    print apsa + a;
-}
-    
-test(1);
-
-print clock();
-
-var something = 1;
-
-class Cake {
-  fun init(suffix){
-    this.suffix = suffix;
-    this.part = Cake.Inner();
-    print "init";
-    print Cake.demo;
-  }
-
-  fun taste(extra) {
-    var adjective = extra + " delicious " + this.suffix;
-    print Cake.demo;
-    this.part.hello(this.flavor);
-    print "The " + this.flavor + " cake is " + adjective;
-  }
-
-  static fun example(a){
-    print environment();
-    return 50 + a;
-  }
-
-  static var demo = 11 + something;
-  static var y = Cake.example(112);
-
-  static class Inner {
-    fun init(){
-        this.x = 0;
-    }
-
-    fun hello(type){
-        this.x = this.x + 1;
-        print "part says hello " + type;
-        print this.x;
-    }
+class BostonCream < Doughnut {
+  cook() {
+    super.cook();
+    print "Pipe full of custard and coat with chocolate.";
   }
 }
 
-print Cake.y;
+BostonCream().cook();
 
-var cake = Cake("!");
-cake.flavor = "chocolate";
-cake.taste("very");
-
-print cake.init(".");
-print cake.taste("again");
-
-print Cake;
-print cake.taste;
-print Cake.example;
-print Cake.demo;
-
-
-class Math {
-    static fun fib(n) {
-        if (n <= 1) return n;
-        return Math.fib(n - 2) + Math.fib(n - 1);
-    }
+class A {
+  method() {
+    print "A method";
+  }
 }
 
-print fib(10);
-print Math.fib(10);
+class B < A {
+  method() {
+    print "B method";
+  }
 
-/*
-anonFib = fun (n) {
-    if (n <= 1) return n;
-    return anonFib(n - 2) + anonFib(n - 1);
-};
-*/
+  test() {
+    super.method();
+  }
+}
 
-var anonClass = class {
-    fun say(){
-        print "inside";
-    }
-};
+class C < B {}
 
-anonClass().say();
-
-print class {fun init(a){ this.a = a;}};
+C().test();
