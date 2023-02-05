@@ -18,9 +18,9 @@ template <typename T>
 
 template <typename T>
     ArrayList<T>::ArrayList(){
-        this->data = NULL;
-        this->count = 0;
-        this->capacity = 0;
+        data = NULL;
+        count = 0;
+        capacity = 0;
     }
 
 template <typename T>

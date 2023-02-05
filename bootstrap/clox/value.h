@@ -2,7 +2,7 @@
 #define clox_value_h
 
 #include "common.h"
-#include "list.h"
+#include "list.cc"
 
 typedef double Value;
 
@@ -10,7 +10,7 @@ class ValueArray {
     public:
         ValueArray();
         ~ValueArray();
-        void write(Value byte);
+        void add(Value value);
         Value get(int index);
 
         ArrayList<Value>* values;

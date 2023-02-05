@@ -8,7 +8,7 @@ ValueArray::~ValueArray(){
     delete values;
 }
 
-void ValueArray::write(Value value){
+void ValueArray::add(Value value){
     values->add(value);
 }
 

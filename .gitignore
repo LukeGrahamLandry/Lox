@@ -3,3 +3,5 @@ lox/lib
 **/.DS_Store
 bootstrap/clox/clox
 **/*.o
+**/.idea
+**/*.h.gch

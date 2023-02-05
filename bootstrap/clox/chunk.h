@@ -3,11 +3,16 @@
 
 #include "common.h"
 #include <string>
-#include "list.h"
+#include "list.cc"
 #include "value.h"
 
 typedef enum {
     OP_CONSTANT,
+    OP_ADD,
+    OP_SUBTRACT,
+    OP_MULTIPLY,
+    OP_DIVIDE,
+    OP_NEGATE,
     OP_RETURN
 } OpCode;
 
@@ -16,7 +21,7 @@ class Chunk {
         Chunk();
         ~Chunk();
         void write(uint8_t byte, int line);
-        int addConstant(Value value);
+        void writeConstant(Value value, int line);
 
         ArrayList<uint8_t>* code;
         ArrayList<int>* lines;
