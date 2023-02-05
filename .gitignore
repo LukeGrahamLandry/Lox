@@ -1,3 +1,5 @@
 **/__pycache__
 lox/lib
 **/.DS_Store
+bootstrap/clox/clox
+**/*.o
