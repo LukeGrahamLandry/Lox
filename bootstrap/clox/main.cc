@@ -11,28 +11,12 @@ void repl(VM *vm);
 int main(int argc, const char* argv[]) {
     VM* vm = new VM();
 
-    vm->interpret("1 != 2 > 3 == 4 + 5 >> 6");
-    return 0;
-
     if (argc == 1){
         repl(vm);
     } else if (argc == 2){
         script(vm, argv[1]);
     }
 
-    Chunk* test = new Chunk();
-
-    test->writeConstant(1, 123);
-    test->writeConstant(5, 123);
-    test->write(OP_ADD, 123);
-    test->writeConstant(2, 123);
-    test->write(OP_DIVIDE, 123);
-    test->write(OP_NEGATE, 123);
-    test->write(OP_RETURN, 123);
-
-    vm->interpret(test);
-
-    delete test;
     delete vm;
     return 0;
 }
@@ -55,6 +39,8 @@ void repl(VM *vm) {
             printf("\n");
             break;
         }
+
+        vm->interpret(line);
     }
 }
 

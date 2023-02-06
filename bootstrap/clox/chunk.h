@@ -13,7 +13,8 @@ typedef enum {
     OP_MULTIPLY,
     OP_DIVIDE,
     OP_NEGATE,
-    OP_RETURN
+    OP_RETURN,
+    OP_EXPONENT
 } OpCode;
 
 class Chunk {

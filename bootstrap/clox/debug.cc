@@ -16,7 +16,7 @@ void Debugger::setChunk(Chunk *chunk) {
 void Debugger::debug(const string& name){
     cout << "== " << name << " ==" << endl;
     for (int offset=0; offset < chunk->code->count;){
-        offset += debugInstruction(offset);
+        offset = debugInstruction(offset);
     }
 }
 
@@ -61,6 +61,8 @@ int Debugger::debugInstruction(int offset){
             return simpleInstruction("OP_DIVIDE", offset);
         case OP_NEGATE:
             return simpleInstruction("OP_NEGATE", offset);
+        case OP_EXPONENT:
+            return simpleInstruction("OP_EXPONENT", offset);
         case OP_CONSTANT:
             return constantInstruction("OP_CONSTANT", offset);
         default:

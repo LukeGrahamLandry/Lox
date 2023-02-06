@@ -1,14 +1,16 @@
 #include "vm.h"
 #include "compiler.h"
-
+#include <cmath>
 VM::VM() {
     resetStack();
+    compiler = new Compiler();
     #ifdef DEBUG_TRACE_EXECUTION
     debug = new Debugger();
     #endif
 }
 
 VM::~VM() {
+    delete compiler;
     #ifdef DEBUG_TRACE_EXECUTION
     delete debug;
     #endif
@@ -17,6 +19,7 @@ VM::~VM() {
 void VM::setChunk(Chunk* chunk){
     this->chunk = chunk;
     ip = chunk->code->data;
+    compiler->setChunk(chunk);
 
     #ifdef DEBUG_TRACE_EXECUTION
     debug->setChunk(chunk);
@@ -33,8 +36,20 @@ InterpretResult VM::interpret(Chunk* chunk) {
 }
 
 InterpretResult VM::interpret(char* src) {
-    Compiler().compile(src);
-    return INTERPRET_OK;
+    Chunk* bytecode = new Chunk();
+    setChunk(bytecode);  // set the internal compiler to point to the new chunk
+
+    InterpretResult result;
+    if (compiler->compile(src)){
+        setChunk(bytecode);  // set the instruction pointer to the start of the newly compiled array
+        run();
+        result = INTERPRET_OK;
+    } else {
+        result = INTERPRET_COMPILE_ERROR;
+    }
+
+    delete bytecode;
+    return result;
 }
 
 void VM::push(Value value){
@@ -88,6 +103,12 @@ InterpretResult VM::run() {
             case OP_DIVIDE:
                 BINARY_OP(/);
                 break;
+            case OP_EXPONENT: {
+                Value right = pop();
+                Value left = pop();
+                push(pow(left, right));
+                break;
+            }
             case OP_NEGATE:
                 push(-pop());
                 break;

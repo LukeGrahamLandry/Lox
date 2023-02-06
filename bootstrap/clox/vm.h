@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "debug.h"
 #include "value.h"
+#include "compiler.h"
 
 typedef enum {
     INTERPRET_OK,
@@ -24,6 +25,7 @@ public:
     InterpretResult interpret(char *src);
     void setChunk(Chunk *chunk);
 private:
+    Compiler* compiler;
     Debugger* debug;
     Chunk* chunk;
     Value stack[STACK_MAX];
