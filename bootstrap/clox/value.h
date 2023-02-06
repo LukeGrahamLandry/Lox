@@ -12,7 +12,8 @@ class ValueArray {
         ~ValueArray();
         void add(Value value);
         Value get(int index);
-
+        int size();
+    private:
         ArrayList<Value>* values;
 };
 

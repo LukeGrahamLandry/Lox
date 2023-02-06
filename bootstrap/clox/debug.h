@@ -4,18 +4,19 @@
 #include "chunk.h"
 
 class Debugger {
-    public:
+public:
     Debugger();
-
     Debugger(Chunk* chunk);
+    void setChunk(Chunk* chunk);
+    void debug(const string& name);
+    int debugInstruction(int offset);
 
-        Chunk* chunk;
 
-        void debug(const string& name);
-        int simpleInstruction(const string& name, int offset);
-        int constantInstruction(const string& name, int offset);
-        int debugInstruction(int offset);
-        void setChunk(Chunk* chunk);
-    };
+private:
+    Chunk* chunk;
+
+    int simpleInstruction(const string& name, int offset);
+    int constantInstruction(const string& name, int offset);
+};
 
 #endif

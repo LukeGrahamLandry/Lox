@@ -1,4 +1,5 @@
 #include "vm.h"
+#include "compiler.h"
 
 VM::VM() {
     resetStack();
@@ -29,6 +30,11 @@ void VM::resetStack(){
 InterpretResult VM::interpret(Chunk* chunk) {
     setChunk(chunk);
     return run();
+}
+
+InterpretResult VM::interpret(char* src) {
+    Compiler().compile(src);
+    return INTERPRET_OK;
 }
 
 void VM::push(Value value){

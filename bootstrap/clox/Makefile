@@ -13,11 +13,17 @@ chunk.o: chunk.h chunk.cc list.o value.o
 debug.o: debug.h debug.cc chunk.o value.o
 	g++ -c debug.cc chunk.o value.o
 
-vm.o: vm.h vm.cc chunk.o value.o debug.o
-	g++ -c vm.cc chunk.o value.o debug.o
+vm.o: vm.h vm.cc chunk.o value.o debug.o compiler.o
+	g++ -c vm.cc chunk.o value.o debug.o compiler.o
 
-main: main.cc chunk.o debug.o vm.o
-	g++ -o clox main.cc chunk.o list.o memory.o value.o debug.o vm.o
+scanner.o: scanner.cc scanner.h chunk.o value.o
+	g++ -c scanner.cc chunk.o value.o
+
+compiler.o: compiler.h chunk.o value.o scanner.o
+	g++ -c compiler.cc chunk.o value.o
+
+main: main.cc chunk.o debug.o vm.o compiler.o scanner.o
+	g++ -o clox main.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o
 
 clean:
 	rm -r *.o clox

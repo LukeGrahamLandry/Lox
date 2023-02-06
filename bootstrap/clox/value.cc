@@ -16,6 +16,10 @@ Value ValueArray::get(int index){
     return values->get(index);
 }
 
+int ValueArray::size() {
+    return values->count;
+}
+
 void printValue(Value value){
     cout << value;
 }

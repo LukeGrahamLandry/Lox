@@ -21,6 +21,6 @@ void Chunk::writeConstant(Value value, int line){
     // TODO: another opcode for reading two bytes for the index for programs long enough to need more than 255
     write(OP_CONSTANT, line);
     constants->add(value);
-    int location = constants->values->count - 1;
+    int location = constants->size() - 1;
     write(location, line);
 }
