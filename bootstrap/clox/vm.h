@@ -9,7 +9,8 @@
 typedef enum {
     INTERPRET_OK,
     INTERPRET_COMPILE_ERROR,
-    INTERPRET_RUNTIME_ERROR
+    INTERPRET_RUNTIME_ERROR,
+    INTERPRET_HALT
 } InterpretResult;
 
 #define STACK_MAX 256
@@ -30,11 +31,24 @@ private:
     Chunk* chunk;
     Value stack[STACK_MAX];
     Value* stackTop;  // where the next value will be inserted
+    Obj* objects;
 
     InterpretResult run();
     void resetStack();
     void push(Value value);
     Value pop();
+
+    Value peek(int distance);
+
+    void runtimeError(const string &message);
+
+    static bool isFalsy(Value value);
+
+    static bool valuesEqual(Value right, Value left);
+
+    void concatenate();
+    void freeObjects();
+    static void freeObject(Obj* object);
 };
 
 #endif

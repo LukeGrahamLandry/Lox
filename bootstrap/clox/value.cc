@@ -21,5 +21,18 @@ int ValueArray::size() {
 }
 
 void printValue(Value value){
-    cout << value;
+    switch (value.type) {
+        case VAL_BOOL:
+            cout << (AS_BOOL(value) ? "true" : "false");
+            break;
+        case VAL_NUMBER:
+            cout << AS_NUMBER(value);
+            break;
+        case VAL_NIL:
+            cout << "nil";
+            break;
+        case VAL_OBJ:
+            printObject(value);
+            break;
+    }
 }

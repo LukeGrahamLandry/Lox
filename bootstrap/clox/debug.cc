@@ -47,28 +47,33 @@ int Debugger::debugInstruction(int offset){
         printf("%04d %4d ", offset, line);
     }
 
+    #define SIMPLE(op) \
+            case op:   \
+                return simpleInstruction(#op, offset);
+
     uint8_t instruction = chunk->code->get(offset);
     switch (instruction){
-        case OP_RETURN:
-            return simpleInstruction("OP_RETURN", offset);
-        case OP_ADD:
-            return simpleInstruction("OP_ADD", offset);
-        case OP_SUBTRACT:
-            return simpleInstruction("OP_SUBTRACT", offset);
-        case OP_MULTIPLY:
-            return simpleInstruction("OP_MULTIPLY", offset);
-        case OP_DIVIDE:
-            return simpleInstruction("OP_DIVIDE", offset);
-        case OP_NEGATE:
-            return simpleInstruction("OP_NEGATE", offset);
-        case OP_EXPONENT:
-            return simpleInstruction("OP_EXPONENT", offset);
+        SIMPLE(OP_RETURN)
+        SIMPLE(OP_ADD)
+        SIMPLE(OP_SUBTRACT)
+        SIMPLE(OP_MULTIPLY)
+        SIMPLE(OP_DIVIDE)
+        SIMPLE(OP_NEGATE)
+        SIMPLE(OP_EXPONENT)
+        SIMPLE(OP_TRUE)
+        SIMPLE(OP_FALSE)
+        SIMPLE(OP_NIL)
+        SIMPLE(OP_NOT)
+        SIMPLE(OP_EQUAL)
+        SIMPLE(OP_GREATER)
+        SIMPLE(OP_LESS)
         case OP_CONSTANT:
             return constantInstruction("OP_CONSTANT", offset);
         default:
             cout << "Unknown Opcode " << endl;
             return offset + 1;
     }
+    #undef SIMPLE
 }
 
 

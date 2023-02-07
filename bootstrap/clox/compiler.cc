@@ -1,8 +1,10 @@
 #include "compiler.h"
 
-Compiler::Compiler(){
+Compiler::Compiler(Obj** objects){
     hadError = false;
     panicMode = false;
+    this->objects = objects;
+
     #ifdef DEBUG_PRINT_CODE
     debugger = new Debugger();
     #endif
@@ -43,16 +45,19 @@ void Compiler::expression() {
 
 void Compiler::number(){
     double value = strtod(previous.start, nullptr);
-    emitConstant(value);
+    emitConstant(NUMBER_VAL(value));
 }
 
-void Compiler::unary(){
+void Compiler::unary(Precedence precedence){
     TokenType operatorType = previous.type;
-    parsePrecedence(PREC_UNARY);  // vm: push value to stack
+    parsePrecedence(precedence);  // vm: push value to stack
 
     switch (operatorType) {
         case TOKEN_MINUS:
             emitByte(OP_NEGATE);  // vm: pop it off, negate, put back
+            break;
+        case TOKEN_BANG:
+            emitByte(OP_NOT);
             break;
         default:
             return;
@@ -64,15 +69,29 @@ void Compiler::unary(){
 void Compiler::parsePrecedence(Precedence precedence){
     advance();
 
-    #define PREFIX_OP(token, method) \
+    #define PREFIX_OP(token, methodCall) \
             case token:              \
-                method();            \
+                methodCall;          \
+                break;
+
+    #define LITERAL(token, opcode)   \
+            case token:              \
+                emitByte(opcode);    \
                 break;
 
     switch (previous.type) {
-        PREFIX_OP(TOKEN_NUMBER, number)
-        PREFIX_OP(TOKEN_MINUS, unary)
-        PREFIX_OP(TOKEN_LEFT_PAREN, grouping)
+        PREFIX_OP(TOKEN_NUMBER, number())
+        PREFIX_OP(TOKEN_MINUS, unary(PREC_UNARY))
+        PREFIX_OP(TOKEN_BANG, unary(PREC_NONE))
+        PREFIX_OP(TOKEN_LEFT_PAREN, grouping())
+        LITERAL(TOKEN_TRUE, OP_TRUE)
+        LITERAL(TOKEN_FALSE, OP_FALSE)
+        LITERAL(TOKEN_NIL, OP_NIL)
+        case TOKEN_STRING:
+            // TODO: support escape sequences
+            // TODO: since it allocates memory here, just exporting the code and constants array to a file will not be enough. you need to write all the data that the objects point to.
+            emitConstant(OBJ_VAL(copyString(objects, previous.start + 1, previous.length - 2)));
+            break;
         default:
             errorAt(previous, "Expect expression.");
             break;
@@ -87,6 +106,16 @@ void Compiler::parsePrecedence(Precedence precedence){
                 break;                                                 \
             }                                                          \
 
+    #define DOUBLE_BINARY_INFIX_OP(operatorToken, operatorPrecedence, opcode, opcode2) \
+            case operatorToken: {                                      \
+                if (precedence > operatorPrecedence) return;           \
+                advance();                                             \
+                parsePrecedence((Precedence)(operatorPrecedence + 1)); \
+                emitByte(opcode);                                      \
+                emitByte(opcode2);                                     \
+                break;                                                 \
+            }
+
     for (;;){
         switch (current.type) {
             BINARY_INFIX_OP(TOKEN_MINUS, PREC_TERM, OP_SUBTRACT)
@@ -94,6 +123,13 @@ void Compiler::parsePrecedence(Precedence precedence){
             BINARY_INFIX_OP(TOKEN_SLASH, PREC_FACTOR, OP_DIVIDE)
             BINARY_INFIX_OP(TOKEN_STAR, PREC_FACTOR, OP_MULTIPLY)
             BINARY_INFIX_OP(TOKEN_EXPONENT, PREC_EXPONENT, OP_EXPONENT)
+            BINARY_INFIX_OP(TOKEN_EQUAL_EQUAL, PREC_EQUALITY, OP_EQUAL)
+            BINARY_INFIX_OP(TOKEN_LESS, PREC_COMPARISON, OP_LESS)
+            BINARY_INFIX_OP(TOKEN_GREATER, PREC_COMPARISON, OP_GREATER)
+            DOUBLE_BINARY_INFIX_OP(TOKEN_BANG_EQUAL, PREC_EQUALITY, OP_EQUAL, OP_NOT)
+            DOUBLE_BINARY_INFIX_OP(TOKEN_GREATER_EQUAL, PREC_COMPARISON, OP_LESS, OP_NOT)
+            DOUBLE_BINARY_INFIX_OP(TOKEN_LESS_EQUAL, PREC_COMPARISON, OP_GREATER, OP_NOT)
+
             // TODO: `condition ? then : else`
             //     ? is binary and : is unary
             //     bytes: THEN ELSE EXPR OP_CONDITIONAL
@@ -107,6 +143,8 @@ void Compiler::parsePrecedence(Precedence precedence){
 
     #undef PREFIX_OP
     #undef BINARY_INFIX_OP
+    #undef LITERAL
+    #undef DOUBLE_BINARY_INFIX_OP
 }
 
 

@@ -40,7 +40,8 @@ void repl(VM *vm) {
             break;
         }
 
-        vm->interpret(line);
+        InterpretResult result = vm->interpret(line);
+        if (result == INTERPRET_HALT) break;
     }
 }
 

@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "scanner.h"
 #include "common.h"
+#include "object.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -25,12 +26,9 @@ typedef enum {
     PREC_PRIMARY
 } Precedence;
 
-
-struct ParseRule;
-
 class Compiler {
 public:
-    Compiler();
+    Compiler(Obj** objects);
     ~Compiler();
 
     bool compile(char *src);
@@ -42,6 +40,7 @@ private:
     bool hadError;
     bool panicMode;
     Scanner* scanner;
+    Obj** objects;
 
     #ifdef DEBUG_PRINT_CODE
     Debugger* debugger;
@@ -63,7 +62,7 @@ private:
 
     void parsePrecedence(Precedence precedence);
 
-    void unary();
+    void unary(Precedence precedence);
 
 };
 
