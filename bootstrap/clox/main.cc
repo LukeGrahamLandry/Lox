@@ -23,7 +23,22 @@ int main(int argc, const char* argv[]) {
 
 void script(VM *vm, const char *path) {
     char* src = readFile(path);
-    InterpretResult result = vm->interpret(src);
+
+    InterpretResult result = INTERPRET_COMPILE_ERROR;
+    if (vm->loadFromSource(src)){
+        for (;;){
+            result = vm->run();
+            if (result == INTERPRET_DEBUG_BREAK_POINT) {
+                long offset = vm->ip - vm->getChunk()->getCodePtr();
+                Chunk* original = new Chunk(*vm->getChunk());  // copy
+                repl(vm);
+                vm->setChunk(original);  // ownership of <original>'s memory is given back to the vm
+                vm->ip = original->getCodePtr() + offset;
+            }
+            else break;
+        }
+    }
+
     free(src);
     if (result == INTERPRET_COMPILE_ERROR) exit(65);
     if (result == INTERPRET_RUNTIME_ERROR) exit(70);
@@ -32,7 +47,7 @@ void script(VM *vm, const char *path) {
 void repl(VM *vm) {
     char line[1024];
 
-    for (;;){
+    for (int i=0;;i++){
         printf("> ");
 
         if (!fgets(line, sizeof(line), stdin)) {
@@ -40,8 +55,18 @@ void repl(VM *vm) {
             break;
         }
 
-        InterpretResult result = vm->interpret(line);
-        if (result == INTERPRET_HALT) break;
+        if (vm->loadFromSource(line)){
+            InterpretResult result;
+            for (;;){
+                result = vm->run();
+                if (result == INTERPRET_DEBUG_BREAK_POINT) {
+                    vm->printDebugInfo();
+                }
+                else break;
+            }
+
+            if (result == INTERPRET_EXIT) break;
+        }
     }
 }
 

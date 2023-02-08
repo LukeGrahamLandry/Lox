@@ -5,6 +5,7 @@
 #include "scanner.h"
 #include "common.h"
 #include "object.h"
+#include "table.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -28,11 +29,14 @@ typedef enum {
 
 class Compiler {
 public:
-    Compiler(Obj** objects);
+    Compiler();
     ~Compiler();
 
     bool compile(char *src);
     void setChunk(Chunk *pChunk);
+
+    Obj* objects;
+    Set* strings;
 private:
     Chunk* chunk;
     Token current;
@@ -40,19 +44,14 @@ private:
     bool hadError;
     bool panicMode;
     Scanner* scanner;
-    Obj** objects;
-
-    #ifdef DEBUG_PRINT_CODE
-    Debugger* debugger;
-    #endif
-
+    Debugger debugger;
 
     void expression();
     void errorAt(Token& token, const char* message);
     void consume(TokenType token, const char* message);
     void emitByte(uint8_t byte);
     void emitBytes(uint8_t byte1, uint8_t byte2);
-    void emitConstant(Value value);
+    void emitConstantAccess(Value value);
     Chunk* currentChunk();
     void advance();
 
@@ -64,6 +63,22 @@ private:
 
     void unary(Precedence precedence);
 
+    void string();
+    Value createStringValue(const char* chars, int length);
+
+    bool match(TokenType token);
+    void declaration();
+    void statement();
+
+    bool check(TokenType type);
+
+    void synchronize();
+
+    uint8_t identifierConstant(Token name);
+
+    uint8_t parseVariable(const char *errorMessage);
+
+    void namedVariable(Token name, bool canAssign);
 };
 
 

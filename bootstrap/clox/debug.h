@@ -14,6 +14,7 @@ public:
 
 private:
     Chunk* chunk;
+    int lastLine;
 
     int simpleInstruction(const string& name, int offset);
     int constantInstruction(const string& name, int offset);

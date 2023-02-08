@@ -1,31 +1,32 @@
 #include "vm.h"
 #include "compiler.h"
+#include "common.h"
 #include <cmath>
+
+#define FORMAT_RUNTIME_ERROR(format, ...)     \
+        fprintf(stderr, format, __VA_ARGS__); \
+        runtimeError();
 
 VM::VM() {
     resetStack();
     objects = nullptr;
-    compiler = new Compiler(&objects);
-    #ifdef DEBUG_TRACE_EXECUTION
-    debug = new Debugger();
-    #endif
+    compiler = Compiler();
+    globals = Table();
+    strings = Set();
+    tempSavedChunk = nullptr;
 }
 
 VM::~VM() {
     freeObjects();
-    delete compiler;
-    #ifdef DEBUG_TRACE_EXECUTION
-    delete debug;
-    #endif
+    delete tempSavedChunk;
 }
 
-void VM::setChunk(Chunk* chunk){
-    this->chunk = chunk;
-    ip = chunk->code->data;
-    compiler->setChunk(chunk);
+void VM::setChunk(Chunk* chunkIn){
+    chunk = chunkIn;
+    ip = chunk->getCodePtr();
 
     #ifdef DEBUG_TRACE_EXECUTION
-    debug->setChunk(chunk);
+    debug.setChunk(chunk);
     #endif
 }
 
@@ -38,40 +39,60 @@ InterpretResult VM::interpret(Chunk* chunk) {
     return run();
 }
 
-InterpretResult VM::interpret(char* src) {
-    Chunk* bytecode = new Chunk();
-    setChunk(bytecode);  // set the internal compiler to point to the new chunk
-
-    InterpretResult result;
-    if (compiler->compile(src)){
-        setChunk(bytecode);  // set the instruction pointer to the start of the newly compiled array
-        run();
-        result = INTERPRET_OK;
-    } else {
-        result = INTERPRET_COMPILE_ERROR;
+bool VM::loadFromSource(char* src) {
+    if (tempSavedChunk != nullptr) {
+        delete tempSavedChunk;
+        chunk = nullptr;
+        tempSavedChunk = nullptr;
     }
 
-    delete bytecode;
-    return result;
+    tempSavedChunk = new Chunk();
+
+    InterpretResult result;
+    compiler.strings = &strings;
+    compiler.setChunk(tempSavedChunk);
+    if (compiler.compile(src)){
+        setChunk(tempSavedChunk);  // set the instruction pointer to the start of the newly compiled array
+
+        if (compiler.objects != nullptr){
+            linkObjects(&objects, compiler.objects);
+            compiler.objects = nullptr;
+        }
+        // strings.safeAddAll(compiler.strings);
+        // compiler.strings.removeAll();
+
+        return true;
+    } else {
+        delete tempSavedChunk;
+        tempSavedChunk = nullptr;
+        return false;
+    }
 }
 
-void VM::push(Value value){
+inline void VM::push(Value value){
     *stackTop = value;
     stackTop++;
 }
 
-Value VM::pop(){
+inline Value VM::pop(){
+    // TODO: take out this check eventually cause it probably slows it down a bunch and will never happen for valid bytecode.
+    if (stackTop == stack){
+        runtimeError("pop called on empty stack. The bytecode must be invalid. ");
+        return NIL_VAL();
+    }
+
     stackTop--;
     return *stackTop;
 }
 
-Value VM::peek(int distance) {
+inline Value VM::peek(int distance) {
     return stackTop[-1 - distance];
 }
 
 InterpretResult VM::run() {
     #define READ_BYTE() (*(ip++))
-    #define READ_CONSTANT() chunk->constants->get(READ_BYTE())
+    #define READ_CONSTANT() chunk->getConstant(READ_BYTE())
+    #define READ_STRING() (AS_STRING(READ_CONSTANT()))
     #define ASSERT_NUMBER(value)                            \
             if (!IS_NUMBER(value)){                         \
                 runtimeError("Operand must be a number.");  \
@@ -88,17 +109,15 @@ InterpretResult VM::run() {
                  break;                   \
             }
 
+    #ifdef DEBUG_TRACE_EXECUTION
+    printDebugInfo();
+    #endif
+
     for (;;){
         #ifdef DEBUG_TRACE_EXECUTION
-        cout << "          ";
-        for (Value* slot = stack; slot < stackTop; slot++){
-            cout << "[";
-            printValue(*slot);
-            cout << "]";
-        }
-        cout << endl;
-
-        debug->debugInstruction((int) (ip - chunk->code->data));
+        printValueArray(stack, stackTop);
+        int index = (int) (ip - chunk->getCodePtr());
+        debug.debugInstruction(index);
         #endif
 
         uint8_t instruction;
@@ -111,7 +130,8 @@ InterpretResult VM::run() {
                     Value left = pop();
                     push(NUMBER_VAL(AS_NUMBER(left) + AS_NUMBER(right)));
                 } else {
-
+                    runtimeError("Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
             BINARY_OP(OP_SUBTRACT, -, NUMBER_VAL)
@@ -119,9 +139,43 @@ InterpretResult VM::run() {
             BINARY_OP(OP_DIVIDE, /, NUMBER_VAL)
             BINARY_OP(OP_GREATER, >, BOOL_VAL)
             BINARY_OP(OP_LESS, <, BOOL_VAL)
-            case OP_CONSTANT:
+            case OP_GET_CONSTANT:
                 push(READ_CONSTANT());
                 break;
+            case OP_DEFINE_GLOBAL: {
+                // TODO: This doesn't check for redefining, but I'll do that as a compiler pass.
+                ObjString* name = READ_STRING();
+                globals.set(name, peek(0));
+                pop();  // don't pop before table set so garbage collector can find if runs during that resize.
+                break;
+            }
+            case OP_SET_GLOBAL: {
+                ObjString* name = READ_STRING();
+                if (globals.set(name, peek(0))){
+                    globals.remove(name);
+                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                // Since an assignment is an expression, it shouldn't modify the stack, so they can chain.
+                // If it was used as a statement, a separate OP_POP will be added automatically.
+                // To avoid a special case we want to make sure that every valid expression adds exactly one thing to the stack.
+                // pop();
+                break;
+            }
+            case OP_GET_GLOBAL: {
+                ObjString* name = READ_STRING();
+                Value value = NIL_VAL();
+                bool found = globals.get(name, &value);
+                if (found){
+                    push(value);
+                } else {
+                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+
             case OP_EXPONENT: {
                 ASSERT_NUMBER(peek(0))
                 ASSERT_NUMBER(peek(1))
@@ -134,12 +188,14 @@ InterpretResult VM::run() {
                 ASSERT_NUMBER(peek(0))
                 push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
-            case OP_RETURN:
+            case OP_PRINT:
                 printValue(pop());
-                cout << endl;
+                cout << endl;  // TODO: have a way to print without forcing the new line but should still generally add that for convince.
+                break;
+            case OP_RETURN:
                 return INTERPRET_OK;
             case OP_NIL:
-                push(NIL_VAL);
+                push(NIL_VAL());
                 break;
             case OP_TRUE:
                 push(BOOL_VAL(true));
@@ -153,6 +209,21 @@ InterpretResult VM::run() {
             case OP_EQUAL:
                 push(BOOL_VAL(valuesEqual(pop(), pop())));
                 break;
+            case OP_POP:
+                if (stackTop == stack){
+                    runtimeError("pop called on empty stack. The bytecode must be invalid. ");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                pop();
+                break;
+
+            case OP_EXIT_VM:  // used to exit the repl or return from debugger.
+                return INTERPRET_EXIT;
+
+            #ifdef ALLOW_DEBUG_BREAK_POINT
+            case OP_DEBUG_BREAK_POINT:
+                return INTERPRET_DEBUG_BREAK_POINT;
+            #endif
         }
     }
 
@@ -160,38 +231,22 @@ InterpretResult VM::run() {
     #undef READ_CONSTANT
     #undef ASSERT_NUMBER
     #undef BINARY_OP
+    #undef READ_STRING
 }
 
 void VM::runtimeError(const string& message){
     cerr << message << endl;
-    int instruction = (int) (ip - chunk->code->data - 1);
-    int line = chunk->lines->get(instruction);
+    runtimeError();
+}
+
+void VM::runtimeError(){
+    int instructionOffset = (int) (ip - chunk->getCodePtr() - 1);
+    int line = chunk->getLineNumber(instructionOffset);
     cerr << "[line " << line << "] in script" << endl;
 }
 
 bool VM::isFalsy(Value value){
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value)) || (IS_NUMBER(value) && AS_NUMBER(value) == 0);
-}
-
-bool VM::valuesEqual(Value right, Value left) {
-    if (right.type != left.type) return false;
-
-    // Book: cant just memcmp() the structs cause there's padding so garbage bites
-    switch (right.type) {
-        case VAL_BOOL:
-            return AS_BOOL(right) == AS_BOOL(left);
-        case VAL_NUMBER:
-            return AS_NUMBER(right) == AS_NUMBER(left);
-        case VAL_NIL:
-            return true;
-        case VAL_OBJ: {
-            ObjString* a = AS_STRING(left);
-            ObjString* b = AS_STRING(right);
-            return a->length == b->length && memcmp(a->chars, b->chars, a->length) == 0;
-        }
-        default:
-            return false;
-    }
 }
 
 void VM::concatenate(){
@@ -204,10 +259,9 @@ void VM::concatenate(){
     memcpy(chars + a->length, b->chars, b->length);
     chars[length] = '\0';
 
-    ObjString* result = takeString(&objects, chars, length);
+    ObjString* result = takeString(&strings, &objects, chars, length);
     push(OBJ_VAL(result));
 }
-
 
 void VM::freeObjects(){
     Obj* object = objects;
@@ -218,19 +272,14 @@ void VM::freeObjects(){
     }
 }
 
-void VM::freeObject(Obj* object){
-    switch (object->type) {
-        case OBJ_STRING: {
-            cout << "free: ";
-            printValue(OBJ_VAL(object));
-            cout << endl;
-
-            // We own the char array.
-            ObjString* string = (ObjString*)object;
-            FREE_ARRAY(char, string->chars, string->length + 1);
-            FREE(ObjString, object);
-            break;
-        }
-
-    }
+void VM::printDebugInfo() {
+    cout << "Current Chunk Constants:" << endl;
+    chunk->printConstantsArray();
+    cout << "Allocated Heap Objects:" << endl;
+    printObjectsList(objects);
+    cout << "Global Variables:";
+    globals.printContents();
+    cout << "Location in chunk: " << (ip - chunk->getCodePtr()) << " / " << chunk->getCodeSize() << endl;
 }
+
+#undef FORMAT_RUNTIME_ERROR

@@ -5,7 +5,7 @@
 Scanner::Scanner(char* src){
     start = src;
     current = start;
-    line = 0;
+    line = 1;
 }
 
 Scanner::~Scanner(){
@@ -135,7 +135,6 @@ TokenType Scanner::identifierType(){
     switch (*start){
         KEYWORD('a', 2, "nd", TOKEN_AND)
         KEYWORD('c', 4, "lass", TOKEN_CLASS)
-        KEYWORD('e', 3, "lse", TOKEN_ELSE)
         KEYWORD('i', 1, "f", TOKEN_IF)
         KEYWORD('n', 2, "il", TOKEN_NIL)
         KEYWORD('o', 1, "r", TOKEN_OR)
@@ -144,6 +143,7 @@ TokenType Scanner::identifierType(){
         KEYWORD('s', 4, "uper", TOKEN_SUPER)
         KEYWORD('v', 2, "ar", TOKEN_VAR)
         KEYWORD('w', 4, "hile", TOKEN_WHILE)
+        KEYWORD('d', 7, "ebugger", TOKEN_DEBUGGER)
         START_BRANCH('f')
             LEAF('a', 3, "lse", TOKEN_FALSE)
             LEAF('o', 1, "r", TOKEN_FOR)
@@ -152,6 +152,10 @@ TokenType Scanner::identifierType(){
         START_BRANCH('t')
             LEAF('h', 2, "is", TOKEN_THIS)
             LEAF('r', 2, "ue", TOKEN_TRUE)
+        END_BRANCH
+        START_BRANCH('e')
+            LEAF('l', 2, "se", TOKEN_ELSE)
+            LEAF('x', 2, "it", TOKEN_EXIT)
         END_BRANCH
     }
 

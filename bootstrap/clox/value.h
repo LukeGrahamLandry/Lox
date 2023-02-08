@@ -26,8 +26,11 @@ struct Value {
 
 // c type -> Value
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
-#define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
+
+#define NIL_VAL()         ((Value){VAL_NIL, {.number = 0}})
+
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
+
 #define OBJ_VAL(object)   ((Value){VAL_OBJ, {.obj = (Obj*)object}})
 
 // Value -> c type
@@ -47,10 +50,11 @@ class ValueArray {
         void add(Value value);
         Value get(int index);
         int size();
-    private:
         ArrayList<Value>* values;
 };
 
 void printValue(Value value);
+void printValueArray(Value* startPtr, Value* endPtr);
+bool valuesEqual(Value right, Value left);  // might need to move this back to the vm when equality needs runtime info
 
 #endif

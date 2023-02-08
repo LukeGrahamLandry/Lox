@@ -7,15 +7,22 @@ Debugger::Debugger(Chunk* chunk){
 
 Debugger::Debugger() {
     chunk = nullptr;
+    lastLine = -1;
 }
 
-void Debugger::setChunk(Chunk *chunk) {
-    this->chunk = chunk;
+void Debugger::setChunk(Chunk* chunkIn) {
+    unsigned char* bytecode1 = chunkIn->getCodePtr();
+
+    chunk = chunkIn;
+
+    unsigned char* bytecode2 = chunkIn->getCodePtr();
+
+
 }
 
 void Debugger::debug(const string& name){
     cout << "== " << name << " ==" << endl;
-    for (int offset=0; offset < chunk->code->count;){
+    for (int offset=0; offset < chunk->getCodeSize();){
         offset = debugInstruction(offset);
     }
 }
@@ -26,8 +33,8 @@ int Debugger::simpleInstruction(const string& name, int offset) {
 }
 
 int Debugger::constantInstruction(const string& name, int offset) {
-    uint8_t constantIndex = chunk->code->get(offset + 1);
-    Value constantValue = chunk->constants->get(constantIndex);
+    uint8_t constantIndex = chunk->getCodePtr()[offset + 1];
+    Value constantValue = chunk->getConstant(constantIndex);
     printf("%-16s %4d '", name.c_str(), constantIndex);
     printValue(constantValue);
     cout << "'" << endl;
@@ -35,25 +42,27 @@ int Debugger::constantInstruction(const string& name, int offset) {
 }
 
 int Debugger::debugInstruction(int offset){
-    int lastLine = 0;
-    int line = chunk->lines->get(offset);
-    if (offset > 0){
-        lastLine = chunk->lines->get(offset - 1);
-    }
-
+    int line = chunk->getLineNumber(offset);
     if (line == lastLine){
         printf("%04d    | ", offset);
     } else {
         printf("%04d %4d ", offset, line);
     }
+    lastLine = line;
 
     #define SIMPLE(op) \
             case op:   \
                 return simpleInstruction(#op, offset);
 
-    uint8_t instruction = chunk->code->get(offset);
+    #define CONSTANT(op) \
+                case op:         \
+                    return constantInstruction(#op, offset);
+
+    OpCode instruction = (OpCode) chunk->getCodePtr()[offset];
     switch (instruction){
+        SIMPLE(OP_POP)
         SIMPLE(OP_RETURN)
+        SIMPLE(OP_PRINT)
         SIMPLE(OP_ADD)
         SIMPLE(OP_SUBTRACT)
         SIMPLE(OP_MULTIPLY)
@@ -67,13 +76,16 @@ int Debugger::debugInstruction(int offset){
         SIMPLE(OP_EQUAL)
         SIMPLE(OP_GREATER)
         SIMPLE(OP_LESS)
-        case OP_CONSTANT:
-            return constantInstruction("OP_CONSTANT", offset);
+        SIMPLE(OP_DEBUG_BREAK_POINT)
+        SIMPLE(OP_EXIT_VM);
+        CONSTANT(OP_DEFINE_GLOBAL)
+        CONSTANT(OP_GET_GLOBAL)
+        CONSTANT(OP_SET_GLOBAL)
+        CONSTANT(OP_GET_CONSTANT)
         default:
-            cout << "Unknown Opcode " << endl;
+            cout << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;
     }
     #undef SIMPLE
+    #undef CONSTANT
 }
-
-
