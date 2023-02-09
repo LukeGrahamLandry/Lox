@@ -5,7 +5,7 @@
 
 #define FORMAT_RUNTIME_ERROR(format, ...)     \
         fprintf(stderr, format, __VA_ARGS__); \
-        runtimeError();
+        runtimeError("");
 
 VM::VM() {
     resetStack();
@@ -25,7 +25,7 @@ void VM::setChunk(Chunk* chunkIn){
     chunk = chunkIn;
     ip = chunk->getCodePtr();
 
-    #ifdef DEBUG_TRACE_EXECUTION
+    #ifdef VM_DEBUG_TRACE_EXECUTION
     debug.setChunk(chunk);
     #endif
 }
@@ -85,39 +85,42 @@ inline Value VM::pop(){
     return *stackTop;
 }
 
-inline Value VM::peek(int distance) {
-    return stackTop[-1 - distance];
-}
-
 InterpretResult VM::run() {
     #define READ_BYTE() (*(ip++))
     #define READ_CONSTANT() chunk->getConstant(READ_BYTE())
     #define READ_STRING() (AS_STRING(READ_CONSTANT()))
-    #define ASSERT_NUMBER(value)                            \
+
+    #define ASSERT_NUMBER(value, message)                   \
             if (!IS_NUMBER(value)){                         \
-                runtimeError("Operand must be a number.");  \
+                runtimeError(message);                      \
+                return INTERPRET_RUNTIME_ERROR;             \
+            }
+
+    #define ASSERT_SEQUENCE(value, message)                 \
+            if (!IS_STRING(value)){                         \
+                runtimeError(message);                      \
                 return INTERPRET_RUNTIME_ERROR;             \
             }
 
     #define BINARY_OP(op_code, c_op, resultCast) \
-            case op_code: {               \
-                 ASSERT_NUMBER(peek(0))   \
-                 ASSERT_NUMBER(peek(1))   \
-                 Value right = pop();     \
-                 Value left = pop();      \
-                 push(resultCast(AS_NUMBER(left) c_op AS_NUMBER(right))); \
-                 break;                   \
+            case op_code: {                      \
+                 ASSERT_NUMBER(peek(0), "Right operand to '" #c_op "' must be a number.")           \
+                 ASSERT_NUMBER(peek(1), string("Left operand to '" #c_op "' must be a number."))    \
+                 Value right = pop();            \
+                 Value left = pop();             \
+                 push(resultCast(AS_NUMBER(left) c_op AS_NUMBER(right)));              \
+                 break;                          \
             }
 
-    #ifdef DEBUG_TRACE_EXECUTION
+    #ifdef VM_DEBUG_TRACE_EXECUTION
     printDebugInfo();
     #endif
 
     for (;;){
-        #ifdef DEBUG_TRACE_EXECUTION
+        #ifdef VM_DEBUG_TRACE_EXECUTION
         printValueArray(stack, stackTop);
-        int index = (int) (ip - chunk->getCodePtr());
-        debug.debugInstruction(index);
+        int instructionOffset = (int) (ip - chunk->getCodePtr());
+        debug.debugInstruction(instructionOffset);
         #endif
 
         uint8_t instruction;
@@ -175,17 +178,89 @@ InterpretResult VM::run() {
                 }
                 break;
             }
+            case OP_ACCESS_INDEX: {
+                ASSERT_NUMBER(peek(0), "Array index must be an integer.")
+                ASSERT_SEQUENCE(peek(1), "Slice target must be a sequence")
+                int index = AS_NUMBER(pop());
+                Value array = pop();
+                Value result;
 
+                if (IS_STRING(array)){
+                    ObjString* str = AS_STRING(array);
+                    if (index < 0) index += str->length;
+                    if (index >= str->length){
+                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", index, str->chars);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    result = OBJ_VAL(copyString(&strings, &objects, str->chars + index, 1));
+                } else {
+                    runtimeError("Unrecognised sequence type");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                push(result);
+                break;
+            }
+            case OP_SLICE_INDEX: {
+                ASSERT_NUMBER(peek(0), "Slice end index must be an integer.")
+                ASSERT_NUMBER(peek(1), "Slice start index must be an integer.")
+                ASSERT_SEQUENCE(peek(2), "Slice target must be a sequence")
+                int endIndex = AS_NUMBER(pop());
+                int startIndex = AS_NUMBER(pop());
+                Value array = pop();
+                Value result;
+
+                if (IS_STRING(array)){
+                    ObjString* str = AS_STRING(array);
+                    if (endIndex < 0) endIndex += str->length;
+                    if (startIndex < 0) startIndex += str->length;
+                    if (endIndex > str->length || endIndex < 0){
+                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", endIndex, str->chars);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    if (startIndex >= str->length || startIndex < 0){
+                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", startIndex, str->chars);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    if (endIndex <= startIndex) {
+                        FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", startIndex, endIndex);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    ObjString* newString = copyString(&strings, &objects, str->chars + startIndex, endIndex - startIndex);
+                    result = OBJ_VAL(newString);
+                } else {
+                    runtimeError("Unrecognised sequence type");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                push(result);
+                break;
+            }
+            case OP_GET_LENGTH: {
+                int stackOffset = READ_BYTE();
+                ASSERT_SEQUENCE(peek(stackOffset), "Length target must be a sequence")
+                Value array = peek(stackOffset);
+                int result;
+                if (IS_STRING(array)){
+                    ObjString* str = AS_STRING(array);
+                    result = str->length;
+                } else {
+                    runtimeError("Unrecognised sequence type");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(NUMBER_VAL(result));
+                break;
+            }
             case OP_EXPONENT: {
-                ASSERT_NUMBER(peek(0))
-                ASSERT_NUMBER(peek(1))
+                ASSERT_NUMBER(peek(0), "Right operand to '**' must be a number.")
+                ASSERT_NUMBER(peek(1), "Left operand to '**' must be a number.")
                 Value right = pop();
                 Value left = pop();
                 push(NUMBER_VAL(pow(AS_NUMBER(left), AS_NUMBER(right))));
                 break;
             }
             case OP_NEGATE:
-                ASSERT_NUMBER(peek(0))
+                ASSERT_NUMBER(peek(0), "Operand to '-' must be a number.")
                 push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
             case OP_PRINT:
@@ -220,9 +295,15 @@ InterpretResult VM::run() {
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
-            #ifdef ALLOW_DEBUG_BREAK_POINT
+            #ifdef VM_ALLOW_DEBUG_BREAK_POINT
             case OP_DEBUG_BREAK_POINT:
                 return INTERPRET_DEBUG_BREAK_POINT;
+            #endif
+
+            #ifdef VM_HALT_ON_UNRECOGNISED_OPCODE
+            default:
+                FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - chunk->getCodePtr() - 1, chunk->getCodeSize());
+                return INTERPRET_RUNTIME_ERROR;
             #endif
         }
     }
@@ -232,6 +313,7 @@ InterpretResult VM::run() {
     #undef ASSERT_NUMBER
     #undef BINARY_OP
     #undef READ_STRING
+    #undef ASSERT_SEQUENCE
 }
 
 void VM::runtimeError(const string& message){
@@ -279,7 +361,9 @@ void VM::printDebugInfo() {
     printObjectsList(objects);
     cout << "Global Variables:";
     globals.printContents();
-    cout << "Location in chunk: " << (ip - chunk->getCodePtr()) << " / " << chunk->getCodeSize() << endl;
+    cout << "Current Stack:" << endl;
+    printValueArray(stack, stackTop - 1);
+    cout << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
 }
 
 #undef FORMAT_RUNTIME_ERROR

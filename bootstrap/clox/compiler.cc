@@ -21,7 +21,7 @@ bool Compiler::compile(char* src){
 
     emitByte(OP_RETURN);
 
-    #ifdef DEBUG_PRINT_CODE
+    #ifdef COMPILER_DEBUG_PRINT_CODE
     if (!hadError){
         debugger.setChunk(currentChunk());
         debugger.debug("code");
@@ -213,8 +213,13 @@ void Compiler::parsePrecedence(Precedence precedence){
             case TOKEN_EQUAL:
                 errorAt(current, "Invalid assignment target");
                 return;
+            case TOKEN_LEFT_SQUARE_BRACKET:
+                if (precedence > PREC_INDEX) return;
+                advance();  // consume [
+                sequenceSliceExpression();
+                break;
 
-            // TODO: `condition ? then : else`
+                // TODO: `condition ? then : else`
             //     ? is binary and : is unary
             //     bytes: THEN ELSE EXPR OP_CONDITIONAL
             //     case OP_CONDITIONAL:
@@ -231,6 +236,28 @@ void Compiler::parsePrecedence(Precedence precedence){
     #undef DOUBLE_BINARY_INFIX_OP
 }
 
+// TODO: should be easy to extend this with write opcodes instead of the read ones.
+// Expects '[' already consumed.
+void Compiler::sequenceSliceExpression(){
+    if (check(TOKEN_COLON)){  // no starting index. default to beginning of sequence
+        emitConstantAccess(NUMBER_VAL(0));
+    } else {
+        expression();  // the starting index
+    }
+
+    if (match(TOKEN_COLON)){  // a slice, not just one entry
+        if (match(TOKEN_RIGHT_SQUARE_BRACKET)){  // no ending index. default to end of sequence
+            emitBytes(OP_GET_LENGTH, 1);
+        } else {
+            expression();  // the last index of the range
+            consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after sequence slice");
+        }
+        emitByte(OP_SLICE_INDEX);
+    } else {  // just access the one index
+        consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after sequence index");
+        emitByte(OP_ACCESS_INDEX);
+    }
+}
 
 // Grouping exists to change precedence but doesn't actually have a unique runtime representation.
 void Compiler::grouping(){

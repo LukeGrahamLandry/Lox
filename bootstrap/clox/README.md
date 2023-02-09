@@ -3,7 +3,9 @@
 ## Language Additions
 
 - `debugger;` 
-- `**` (exponent)
+- `exit;`
+- `a ** b` (a to the power of b)
+- Index and slice strings: `s[index]` or `s[start:end]`
 
 ## Parsing Source Code
 
@@ -22,7 +24,8 @@ Any expression must start with a valid prefix, so it starts by switching over th
 
 It knows it found a literal if the token is STRING, NUMBER, BOOLEAN, or NIL.
 It uses the group of characters referenced in the source code array to create a value of the correct c type.
-It puts a Value in the constants array and writes OP_GET_CONSTANT then the index to the bytecode.
+It puts a Value in the constants array and writes OP_GET_CONSTANT then its index to the bytecode.
+Constants are deduplicated. When the compiler adds a new constant, it loops through all existing ones to check if that value is already there.
 
 
 
@@ -116,7 +119,7 @@ Now we add VM OP_DEFINE_GLOBAL:
 To retrieve, ex: name;
     - index = add to constants "name"
     - emit: OP_GET_GLOBAL index
-VM OP_DEFINE_GLOBAL:
+VM OP_GET_GLOBAL:
     - name = next byte as index to constant array
     - value = get name from globals hash table
     - push(value)
@@ -128,7 +131,7 @@ because you never know if something later will use them so then global variables
 And local variables are indexes into that function's array which will get popped off the stack at the end. 
 That's just reference counting tho.
 
-Could have type tags for each thing in constants array packed in a separate array of longs so it could look 
+Could have type tags for each thing in constants array packed in a separate array of longs, so it could look 
 them up if it really wanted to. There's only 4 options and im afraid of the padding. 
 
 A function is a variable whose value is a Chunk. 

@@ -5,3 +5,4 @@ bootstrap/clox/clox
 **/*.o
 **/.idea
 **/*.h.gch
+bootstrap/clox/clox.dSYM/**

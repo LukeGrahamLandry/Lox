@@ -35,8 +35,6 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
         linkObjects(objectsHead, RAW_OBJ(str));
     }
 
-
-
     return str;
 }
 
@@ -93,6 +91,8 @@ void freeObject(Obj* object){
 }
 
 uint32_t hashString(const char* key, int length) {
+    if (length < 0) cerr << "Cannot hash string of length " << length << endl;
+
     uint32_t hash = 2166136261u;
     for (int i = 0; i < length; i++) {
         hash ^= (uint8_t)key[i];

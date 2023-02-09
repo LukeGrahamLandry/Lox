@@ -46,6 +46,9 @@ Token Scanner::scanToken() {
         DOUBLE_TOKEN('=', '=', TOKEN_EQUAL, TOKEN_EQUAL_EQUAL)
         DOUBLE_TOKEN('<', '=', TOKEN_LESS, TOKEN_LESS_EQUAL)
         DOUBLE_TOKEN('>', '=', TOKEN_GREATER, TOKEN_GREATER_EQUAL)
+        SINGLE_TOKEN('[', TOKEN_LEFT_SQUARE_BRACKET)
+        SINGLE_TOKEN(']', TOKEN_RIGHT_SQUARE_BRACKET)
+        SINGLE_TOKEN(':', TOKEN_COLON)
 
         case '"':
             return string();
@@ -79,7 +82,10 @@ void Scanner::skipWhitespace() {
                     while (peek() != '\n' && !isAtEnd()){
                         advance();
                     }
+                    char x = peekNext();
+                    continue;
                 } else {
+                    char x = peekNext();
                     return;
                 }
             default:

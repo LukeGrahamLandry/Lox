@@ -31,7 +31,10 @@ typedef enum {
     OP_DEBUG_BREAK_POINT,
     OP_EXIT_VM,
     OP_GET_GLOBAL,
-    OP_SET_GLOBAL
+    OP_SET_GLOBAL,
+    OP_ACCESS_INDEX,
+    OP_SLICE_INDEX,
+    OP_GET_LENGTH
 } OpCode;
 
 class Chunk {

@@ -77,11 +77,18 @@ int Debugger::debugInstruction(int offset){
         SIMPLE(OP_GREATER)
         SIMPLE(OP_LESS)
         SIMPLE(OP_DEBUG_BREAK_POINT)
-        SIMPLE(OP_EXIT_VM);
+        SIMPLE(OP_EXIT_VM)
+        SIMPLE(OP_ACCESS_INDEX)
+        SIMPLE(OP_SLICE_INDEX)
         CONSTANT(OP_DEFINE_GLOBAL)
         CONSTANT(OP_GET_GLOBAL)
         CONSTANT(OP_SET_GLOBAL)
         CONSTANT(OP_GET_CONSTANT)
+        case OP_GET_LENGTH: {
+            uint8_t stackOffset = chunk->getCodePtr()[offset + 1];
+            printf("%-16s %4d \n", "OP_GET_LENGTH", stackOffset);
+            return offset + 2;
+        }
         default:
             cout << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;

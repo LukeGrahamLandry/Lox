@@ -51,7 +51,13 @@ private:
     void push(Value value);
     Value pop();
 
-    Value peek(int distance);
+    inline Value peek(int distance) {
+        return stackTop[-1 - distance];
+    }
+
+    inline Value peek() {
+        return stackTop[-1];
+    }
 
     void runtimeError(const string &message);
     void runtimeError();

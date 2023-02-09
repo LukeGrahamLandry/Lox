@@ -7,7 +7,7 @@
 #include "object.h"
 #include "table.h"
 
-#ifdef DEBUG_PRINT_CODE
+#ifdef COMPILER_DEBUG_PRINT_CODE
 #include "debug.h"
 #endif
 
@@ -23,6 +23,7 @@ typedef enum {
     PREC_FACTOR,      // * /
     PREC_EXPONENT,    // **
     PREC_UNARY,       // ! -
+    PREC_INDEX,       // []
     PREC_CALL,        // . ()
     PREC_PRIMARY
 } Precedence;
@@ -58,6 +59,7 @@ private:
     void number();
 
     void grouping();
+    void sequenceSliceExpression();
 
     void parsePrecedence(Precedence precedence);
 
