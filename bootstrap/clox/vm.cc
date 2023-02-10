@@ -74,11 +74,12 @@ bool VM::loadFromSource(char* src) {
 }
 
 inline void VM::push(Value value){
-    // TODO: take out this check eventually cause it probably slows it down a bunch and will never happen for valid bytecode.
+    #ifdef VM_SAFE_MODE
     if (stackHeight() >= STACK_MAX){
         runtimeError("Stack overflow on push.");
         return;
     }
+    #endif
 
     *stackTop = value;
     stackTop++;
@@ -192,7 +193,7 @@ InterpretResult VM::run() {
                 ObjString* name = READ_STRING();
                 if (globals.set(name, peek(0))){
                     globals.remove(name);
-                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
+                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", asCString(name));
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
@@ -209,7 +210,7 @@ InterpretResult VM::run() {
                 if (found){
                     push(value);
                 } else {
-                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
+                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", asCString(name));
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -221,21 +222,9 @@ InterpretResult VM::run() {
                 int index = AS_NUMBER(pop());
                 Value array = pop();
                 Value result;
-
-                if (IS_STRING(array)){
-                    ObjString* str = AS_STRING(array);
-                    uint32_t realIndex = index < 0 ? str->length + index : index;
-                    if (realIndex >= str->length){
-                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", index, str->chars);
-                        return INTERPRET_RUNTIME_ERROR;
-                    }
-                    result = OBJ_VAL(copyString(&strings, &objects, str->chars + realIndex, 1));
-                } else {
-                    runtimeError("Unrecognised sequence type");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-
-                push(result);
+                bool success = accessSequenceIndex(array, index, &result);
+                if (success) push(result);
+                else return INTERPRET_RUNTIME_ERROR;
                 break;
             }
             case OP_SLICE_INDEX: {
@@ -247,31 +236,9 @@ InterpretResult VM::run() {
                 int startIndex = AS_NUMBER(pop());
                 Value array = pop();
                 Value result;
-
-                if (IS_STRING(array)){
-                    ObjString* str = AS_STRING(array);
-                    uint32_t realEndIndex = endIndex < 0 ? str->length + endIndex : endIndex;
-                    uint32_t realStartIndex = startIndex < 0 ? str->length + startIndex : startIndex;
-                    if (realEndIndex > str->length){
-                        FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", endIndex, str->chars);
-                        return INTERPRET_RUNTIME_ERROR;
-                    }
-                    if (realStartIndex >= str->length){
-                        FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", startIndex, str->chars);
-                        return INTERPRET_RUNTIME_ERROR;
-                    }
-                    if (realEndIndex <= realStartIndex) {
-                        FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", realStartIndex, realEndIndex);
-                        return INTERPRET_RUNTIME_ERROR;
-                    }
-                    ObjString* newString = copyString(&strings, &objects, str->chars + realStartIndex, realEndIndex - realStartIndex);
-                    result = OBJ_VAL(newString);
-                } else {
-                    runtimeError("Unrecognised sequence type");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-
-                push(result);
+                bool success = accessSequenceSlice(array, startIndex, endIndex, &result);
+                if (success) push(result);
+                else return INTERPRET_RUNTIME_ERROR;
                 break;
             }
             case OP_GET_LENGTH: {
@@ -279,15 +246,9 @@ InterpretResult VM::run() {
                 int stackOffset = READ_BYTE();
                 ASSERT_SEQUENCE(peek(stackOffset), "Length target must be a sequence")
                 Value array = peek(stackOffset);
-                double result;
-                if (IS_STRING(array)){
-                    ObjString* str = AS_STRING(array);
-                    result = str->length;
-                } else {
-                    runtimeError("Unrecognised sequence type");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                push(NUMBER_VAL(result));
+                double result = getSequenceLength(array);
+                if (result == -1) return INTERPRET_RUNTIME_ERROR;
+                else push(NUMBER_VAL(result));
                 break;
             }
             case OP_EXPONENT: {
@@ -383,13 +344,13 @@ void VM::concatenate(){
     ObjString* b = AS_STRING(pop());
     ObjString* a = AS_STRING(pop());
 
-    int length = a->length + b->length;
+    uint32_t length = a->array.length-1 + b->array.length-1;
     char* chars = ALLOCATE(char, length + 1);
-    memcpy(chars, a->chars, a->length);
-    memcpy(chars + a->length, b->chars, b->length);
+    memcpy(chars, a->array.contents, a->array.length - 1);
+    memcpy(chars + a->array.length - 1, b->array.contents, b->array.length - 1);
     chars[length] = '\0';
 
-    ObjString* result = takeString(&strings, &objects, chars, length);
+    ObjString* result = takeString(&strings, &objects, chars,  length);
     push(OBJ_VAL(result));
 }
 
@@ -431,7 +392,7 @@ void VM::loadInlineConstant(){
             assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
-            ObjString* str = copyString(&strings, &objects, (char*) ip, length);
+            ObjString* str = copyString(&strings, &objects, (char*) ip, length-1);
             chunk->rawAddConstant(OBJ_VAL(str));
             ip += length;
             break;
@@ -439,6 +400,58 @@ void VM::loadInlineConstant(){
         default:
             FORMAT_RUNTIME_ERROR("Invalid Value Type '%d'", type);
             break;
+    }
+}
+
+bool VM::accessSequenceIndex(Value array, int index, Value* result){
+    if (IS_STRING(array)){
+        ObjString* str = AS_STRING(array);
+        uint32_t realIndex = index < 0 ? str->array.length - 1 + index : index;
+        if (realIndex >= str->array.length-1){
+            FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", index, AS_CSTRING(array));
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        *result = OBJ_VAL(copyString(&strings, &objects, AS_CSTRING(array) + realIndex, 1));
+        return true;
+    } else {
+        runtimeError("Unrecognised sequence type");
+        return false;
+    }
+}
+
+bool VM::accessSequenceSlice(Value array, int startIndex, int endIndex, Value* result){
+    if (IS_STRING(array)){
+        ObjString* str = AS_STRING(array);
+        uint32_t realEndIndex = endIndex < 0 ? str->array.length - 1 + endIndex : endIndex;
+        uint32_t realStartIndex = startIndex < 0 ? str->array.length - 1 + startIndex : startIndex;
+        if (realEndIndex > str->array.length - 1){
+            FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", endIndex, AS_CSTRING(array));
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        if (realStartIndex >= str->array.length - 1){
+            FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", startIndex, AS_CSTRING(array));
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        if (realEndIndex <= realStartIndex) {
+            FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", realStartIndex, realEndIndex);
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        ObjString* newString = copyString(&strings, &objects, AS_CSTRING(array) + realStartIndex, (int) (realEndIndex - realStartIndex));
+        *result = OBJ_VAL(newString);
+        return true;
+    } else {
+        runtimeError("Unrecognised sequence type");
+        return false;
+    }
+}
+
+double VM::getSequenceLength(Value array){
+    if (IS_STRING(array)){
+        ObjString* str = AS_STRING(array);
+        return str->array.length - 1;
+    } else {
+        runtimeError("Unrecognised sequence type");
+        return -1;
     }
 }
 

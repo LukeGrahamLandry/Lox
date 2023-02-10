@@ -12,9 +12,16 @@
 #define RAW_OBJ(objSubclassInstancePtr) ((Obj*) objSubclassInstancePtr)
 
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
+#define IS_ARRAY(value)       (IS_STRING(value))
 
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
+#define AS_CSTRING(value)      ((char*) ((ObjString*)AS_OBJ(value))->array.contents)
+#define AS_ARRAY(value)       \
+        (IS_STRING(value) ? \
+        (ObjArray){VAL_OBJ, {.obj = (Obj*)AS_OBJ()}                      \
+        : nullptr)
+
+
 
 typedef enum {
     OBJ_STRING,
@@ -32,14 +39,17 @@ struct Obj {
     struct Obj* next;  // TODO: what does the struct keyword do here?
 };
 
-// This expects <chars> to be null terminated but <length> does not include the terminator character.
-struct ObjString {
+struct ObjArray {
     Obj obj;
     uint32_t length;
-    char* chars;
-    uint32_t hash;
+    void* contents;
 };
 
+// This expects <chars> to be null terminated but <length> does not include the terminator character.
+struct ObjString {
+    ObjArray array;
+    uint32_t hash;
+};
 
 typedef struct Value Value;
 typedef class Set Set;
@@ -47,18 +57,18 @@ typedef class Set Set;
 
 bool isObjType(Value value, ObjType type);
 ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length);
-ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int length);
-ObjString* allocateString(char* chars, int length, uint32_t hash);
+ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint32_t length);
+ObjString* allocateString(char* chars, uint32_t length, uint32_t hash);
 Obj* allocateObject(size_t size, ObjType type);
 void printObject(Value value, ostream* output);
 void printObject(Value value);
 void printObjectOwnedAddresses(Value value);
-uint32_t hashString(const char* chars, int length);
+uint32_t hashString(const char* chars, uint32_t length);
 void printObjectsList(Obj* head);
 void freeObject(Obj* object);
 
-inline void freeStringChars(char* chars, int length){
-    FREE_ARRAY(char, chars, length + 1);
+inline void freeStringChars(ObjString* string){
+    FREE_ARRAY(char, string->array.contents, string->array.length);
 }
 
 inline void linkObjects(Obj** head, Obj* additional) {
@@ -68,6 +78,10 @@ inline void linkObjects(Obj** head, Obj* additional) {
     }
     end->next = *head;
     *head = additional;
+}
+
+inline char* asCString(ObjString* str){
+    return (char*) str->array.contents;
 }
 
 #endif

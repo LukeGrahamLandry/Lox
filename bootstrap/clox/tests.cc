@@ -1,5 +1,11 @@
-#include "tests.h"
 #include <sstream>
+#include "chunk.h"
+#include "vm.h"
+#include "common.h"
+
+void runTest(bool (*func)(), const char* name);
+bool testChunkExports();
+void runOutputTest(const char* name, const char* code, const char* expectedOutput);
 
 int passed = 0;
 int total = 0;
@@ -8,20 +14,55 @@ const char* binaryPath = "code.blox";
 
 int main() {
     runTest(&testChunkExports, "Export chunks as binary");
+    runOutputTest(
+            "Index into strings",
+            "print \"hello\"[0]; print \"hello\"[-1]; print \"hello\"[:2]; print \"hello\"[2:]; print \"hello\"[:]; print \"hello\"[1:4]; print \"hello\"[1:-1];",
+            "h\no\nhe\nllo\nhello\nell\nell\n"
+    );
 
     cout << "Passed " << passed << " of " << total << " tests." << endl;
     return 0;
 }
 
-void runTest(bool (*func)(), const char* name) {
+void startTest(string& name){
     total++;
-    cout << "START Test " << total << ": " << name << "." << endl;
-    bool result = func();
+    cout << "START TEST " << total << ": " << name << "." << endl;
+}
 
+void endTest(string& name, bool result){
     if (result) cout << "PASS";
     else cout << "FAIL";
-    cout << " Test " << total << ": " << name << "." << endl;
+    cout << " TEST " << total << ": " << name << "." << endl;
     passed += result;
+}
+
+void runTest(bool (*func)(), const char* name) {
+    string n = name;
+    startTest(n);
+    bool result = func();
+    endTest(n, result);
+}
+
+void runOutputTest(const char* name, const char* code, const char* expectedOutput){
+    string n = name;
+    string c = code;
+    string o = expectedOutput;
+    startTest(n);
+    bool result = false;
+
+    ostringstream buffer;
+    VM vm;
+    if (vm.loadFromSource(const_cast<char *>(c.c_str()))) {
+        vm.setOutput(&buffer);
+        vm.run();
+        result = buffer.str() == o;
+        if (!result){
+            cout << "Expected output: " << endl << o << endl;
+            cout << "Actual output: " << endl << buffer.str() << endl;
+        }
+    }
+
+    endTest(n, result);
 }
 
 bool testChunkExports() {

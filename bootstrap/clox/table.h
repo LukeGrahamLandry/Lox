@@ -17,10 +17,10 @@ public:
     Table();
     ~Table();
 
-    int count;
-    int capacity;
+    uint32_t count;
+    uint32_t capacity;
     Entry* entries;
-    int maxEntries;
+    uint32_t maxEntries;
 
     bool set(ObjString* key, Value value);
     void adjustCapacity();
@@ -33,10 +33,10 @@ public:
     bool setEntry(Entry* entry, ObjString *key, Value value);
     void removeAll();
     void printContents();
-    bool safeFindEntry(const char* chars, int length, uint32_t hash, Entry** outEntry);
+    bool safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry);
 
 protected:
-    static Entry* findEntry(Entry* firstInTable, int tableCapacity, ObjString *key);
+    static Entry* findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key);
 
     static inline bool isEmpty(Entry* entry){
         return entry->key == nullptr;

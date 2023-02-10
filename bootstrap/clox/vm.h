@@ -79,6 +79,12 @@ private:
     int stackHeight();
 
     void loadInlineConstant();
+
+    bool accessSequenceIndex(Value array, int index, Value *result);
+
+    bool accessSequenceSlice(Value array, int startIndex, int endIndex, Value *result);
+
+    double getSequenceLength(Value array);
 };
 
 #endif

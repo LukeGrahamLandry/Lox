@@ -13,7 +13,6 @@ template <typename T>
             void push(T value);
             T get(uint index);
             void set(uint index, T value);
-            void resize();
             bool isEmpty();
             T pop();
             T* peek(uint indexFromFront);
@@ -55,10 +54,6 @@ template<typename T>
     }
 
 template<typename T>
-    void ArrayList<T>::resize() {
-        grow(1);
-    }
-template<typename T>
     void ArrayList<T>::grow(uint32_t delta) {
         if (capacity > count + delta) return;
         int oldCapacity = capacity;
@@ -89,7 +84,7 @@ template <typename T>
 
 template <typename T>
     void ArrayList<T>::push(T value){
-        resize();
+        grow(1);
         data[count] = value;
         count++;
     }

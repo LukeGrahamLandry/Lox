@@ -18,6 +18,10 @@ bool isObjType(Value value, ObjType type){
 // <length> must not include the null terminator.
 // TODO: flag for being a constant string where the object doesnt own the memory, just point into the src string.
 ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length){
+    #ifdef VM_SAFE_MODE
+    if (length < 0) cerr << "Cannot allocate string of negative length " << length << endl;
+    #endif
+
     uint32_t hash = hashString(chars, length);
 
     Entry* slot;
@@ -41,7 +45,7 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
 // Used when we already own that memory.
 // The caller is giving away the memory to the new ObjString returned, so we're allowed to free it if it's a duplicate.
 // This requires <chars> to be a null terminated string with the terminator NOT included in the <length>.
-ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int length) {
+ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint32_t length) {
     uint32_t hash = hashString(chars, length);
 
     Entry* slot;
@@ -49,7 +53,7 @@ ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int 
     bool wasInterned = internedStrings->safeFindEntry(chars, length, hashString(chars, length), &slot);
     if (wasInterned){
         str = slot->key;
-        freeStringChars(chars, length);
+        FREE_ARRAY(char, chars,  length + 1);  // + 1 for null terminator
     } else {
         str = allocateString(chars, length, hash);
         internedStrings->setEntry(slot, str, NIL_VAL());
@@ -59,14 +63,10 @@ ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int 
     return str;
 }
 
-ObjString* allocateString(char* chars, int length, uint32_t hash) {
-    #ifdef VM_SAFE_MODE
-    if (length < 0) cerr << "Cannot allocate string of negative length " << length << endl;
-    #endif
-
+ObjString* allocateString(char* chars, uint32_t length, uint32_t hash) {
     ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
-    string->length = length;
-    string->chars = chars;
+    string->array.contents = chars;
+    string->array.length = length + 1;
     string->hash = hash;
     return string;
 }
@@ -84,16 +84,14 @@ void freeObject(Obj* object){
         case OBJ_STRING: {
             // We own the char array.
             ObjString* string = (ObjString*)object;
-            freeStringChars(string->chars, string->length);
+            freeStringChars(string);
             FREE(ObjString, object);
             break;
         }
     }
 }
 
-uint32_t hashString(const char* key, int length) {
-    if (length < 0) cerr << "Cannot hash string of length " << length << endl;
-
+uint32_t hashString(const char* key, uint32_t length) {
     uint32_t hash = 2166136261u;
     for (int i = 0; i < length; i++) {
         hash ^= (uint8_t)key[i];

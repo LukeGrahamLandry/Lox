@@ -64,7 +64,7 @@ Entry* Table::findEntry(ObjString *key){
     return findEntry(entries, capacity, key);
 }
 
-Entry* Table::findEntry(Entry* firstInTable, int tableCapacity, ObjString *key){
+Entry* Table::findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key){
     uint32_t index = key->hash % tableCapacity;
     Entry* tombstone = nullptr;
 
@@ -87,8 +87,8 @@ Entry* Table::findEntry(Entry* firstInTable, int tableCapacity, ObjString *key){
 
 void Table::adjustCapacity() {
     Entry* oldEntries = entries;
-    int oldCapacity = capacity;
-    int newCapacity = GROW_CAPACITY(oldCapacity);
+    uint32_t oldCapacity = capacity;
+    uint32_t newCapacity = GROW_CAPACITY(oldCapacity);
 
     Entry* newEntries = ALLOCATE(Entry, newCapacity);
     // allocate doesn't initialize to 0 so there will just be random garbage there,
@@ -142,7 +142,7 @@ void Table::addAll(const Table& from) {
 bool Table::safeSet(ObjString *key, Value value) {
     if (count + 1 > maxEntries) adjustCapacity();
     Entry* toEntry;
-    safeFindEntry(key->chars, key->length, key->hash, &toEntry);
+    safeFindEntry((char*) key->array.contents, key->array.length - 1, key->hash, &toEntry);
     return setEntry(toEntry, key, value);
 }
 
@@ -162,7 +162,7 @@ bool Table::contains(ObjString *key) {
 // The keys used in a table should always be put through a hash set using this method.
 // returns true if the string is already a key in the table.
 // <outEntry> is set to either the entry containing the value or the best one to put it in if not found.
-bool Table::safeFindEntry(const char* chars, int length, uint32_t hash, Entry** outEntry){
+bool Table::safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry){
     if (count == 0) adjustCapacity();
     uint32_t index = hash % capacity;
     Entry* tombstone = nullptr;
@@ -175,9 +175,9 @@ bool Table::safeFindEntry(const char* chars, int length, uint32_t hash, Entry** 
             } else {  // tombstone
                 if (tombstone == nullptr) tombstone = slot;
             }
-        } else if (slot->key->length == length &&
+        } else if (slot->key->array.length-1 == length &&
                     slot->key->hash == hash &&
-                    memcmp(slot->key->chars, chars, length) == 0) {
+                    memcmp(slot->key->array.contents, chars, length) == 0) {
             *outEntry = slot;
             return true;
         }
@@ -188,14 +188,14 @@ bool Table::safeFindEntry(const char* chars, int length, uint32_t hash, Entry** 
 
 void Table::printContents() {
     cout << "   HashTable count=" << count << " capacity=" << capacity << endl;
-    for (int i=0;i<capacity;i++){
+    for (uint32_t i=0;i<capacity;i++){
         Entry* entry = entries + i;
         if (!isEmpty(entry)){
             cout << "          ";
             printObjectOwnedAddresses(OBJ_VAL(entry->key));
             cout << " [";
-            for (int j=0;j<entry->key->length;j++){
-                cout << entry->key->chars[j];
+            for (uint32_t j=0;j<entry->key->array.length-1;j++){
+                cout << ((char*) entry->key->array.contents)[j];
             }
             cout << "] = ";
             if (IS_STRING(entry->value)){

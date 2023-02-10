@@ -72,7 +72,7 @@ const_index_t Chunk::addConstant(Value value){
         if (valuesEqual(value, constant)){
             if (IS_OBJ(value)){ // The Obj struct is allocated on the heap.
                 bool sameAddress = AS_OBJ(value) == AS_OBJ(constant);
-                if (!sameAddress){
+                if (!sameAddress){  // if the new Value is a different address but the same data, we delete it and use the old one instead
                     switch (AS_OBJ(value)->type) {
                         case OBJ_STRING:
                             FREE(ObjString, AS_STRING(value));
@@ -151,9 +151,9 @@ ArrayList<byte>* Chunk::exportAsBinary(){
                 switch (type) {
                     case OBJ_STRING: {
                         ObjString* str = AS_STRING(value);
-                        assert(sizeof(str->length) == 4);
-                        appendAsBytes(output, str->length);
-                        output->appendMemory(cast(byte*, str->chars), str->length);
+                        assert(sizeof(str->array.length) == 4);
+                        appendAsBytes(output, str->array.length);
+                        output->appendMemory(cast(byte*, str->array.contents), str->array.length);
                         break;
                     }
                     default:
@@ -191,8 +191,8 @@ uint32_t Chunk::getExportSize(){
                 switch (type) {
                     case OBJ_STRING: {
                         ObjString* str = AS_STRING(value);
-                        total += sizeof(str->length);
-                        total += str->length;
+                        total += sizeof(str->array.length);
+                        total += str->array.length;
                         break;
                     }
                     default:
