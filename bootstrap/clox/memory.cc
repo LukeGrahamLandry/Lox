@@ -9,6 +9,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize){
 
     void* result = realloc(pointer, newSize);
     if (result == nullptr) {
+        cerr << "Failed to reallocate from " << oldSize << " to " << newSize << endl;
         exit(1);
     }
     

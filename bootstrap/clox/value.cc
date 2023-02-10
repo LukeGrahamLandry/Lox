@@ -20,21 +20,25 @@ int ValueArray::size() {
     return values->count;
 }
 
-void printValue(Value value){
+void printValue(Value value, ostream* output){
     switch (value.type) {
         case VAL_BOOL:
-            cout << (AS_BOOL(value) ? "true" : "false");
+            *output << (AS_BOOL(value) ? "true" : "false");
             break;
         case VAL_NUMBER:
-            cout << AS_NUMBER(value);
+            *output << AS_NUMBER(value);
             break;
         case VAL_NIL:
-            cout << "nil";
+            *output << "nil";
             break;
         case VAL_OBJ:
-            printObject(value);
+            printObject(value, output);
             break;
     }
+}
+
+void printValue(Value value){
+    printValue(value, &cout);
 }
 
 void printValueArray(Value *startPtr, Value *endPtr) {

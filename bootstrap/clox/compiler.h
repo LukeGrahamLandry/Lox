@@ -62,8 +62,8 @@ private:
     void expression();
     void errorAt(Token& token, const char* message);
     void consume(TokenType token, const char* message);
-    void emitByte(uint8_t byte);
-    void emitBytes(uint8_t byte1, uint8_t byte2);
+    void emitByte(byte byte1);
+    void emitBytes(byte byte1, byte byte2);
     void emitConstantAccess(Value value);
     Chunk* currentChunk();
     void advance();
@@ -88,9 +88,9 @@ private:
 
     void synchronize();
 
-    uint8_t identifierConstant(Token name);
+    byte identifierConstant(Token name);
 
-    uint8_t parseGlobalVariable(const char *errorMessage);
+    byte parseGlobalVariable(const char *errorMessage);
 
     void namedVariable(Token name, bool canAssign);
 

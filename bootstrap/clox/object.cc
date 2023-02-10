@@ -60,13 +60,14 @@ ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int 
 }
 
 ObjString* allocateString(char* chars, int length, uint32_t hash) {
+    #ifdef VM_SAFE_MODE
+    if (length < 0) cerr << "Cannot allocate string of negative length " << length << endl;
+    #endif
+
     ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     string->length = length;
     string->chars = chars;
     string->hash = hash;
-//    cout << "String Allocated [";
-//    printValue(OBJ_VAL(string));
-//    cout << "]" << endl;
     return string;
 }
 
@@ -101,14 +102,18 @@ uint32_t hashString(const char* key, int length) {
     return hash;
 }
 
-void printObject(Value value){
+void printObject(Value value, ostream* output){
     switch (OBJ_TYPE(value)) {
         case OBJ_STRING:
-            cout << AS_CSTRING(value);
+            *output << AS_CSTRING(value);
             break;
         default:
-            cout << "Untagged Obj " << AS_OBJ(value);
+            *output << "Untagged Obj " << AS_OBJ(value);
     }
+}
+
+void printObject(Value value){
+    printObject(value, &cout);
 }
 
 void printObjectOwnedAddresses(Value value){

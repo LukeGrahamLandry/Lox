@@ -28,10 +28,17 @@ object.o: object.cc object.h
 table.o: table.cc table.h
 	g++ -c table.cc -g
 
+tests: tests.cc tests.h chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h tests.o
+	g++ -o clox_tests tests.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
+
 main: main.cc chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h
 	g++ -o clox main.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
 
 clean:
-	rm -r *.o clox
+	rm -r *.o
+	rm clox
+	rm clox_tests
+	rm -r clox.dSYM
+	rm -r clox_tests.dSYM
 
 all: main

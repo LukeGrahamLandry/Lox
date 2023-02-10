@@ -35,7 +35,7 @@ struct Obj {
 // This expects <chars> to be null terminated but <length> does not include the terminator character.
 struct ObjString {
     Obj obj;
-    int length;
+    uint32_t length;
     char* chars;
     uint32_t hash;
 };
@@ -50,6 +50,7 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
 ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, int length);
 ObjString* allocateString(char* chars, int length, uint32_t hash);
 Obj* allocateObject(size_t size, ObjType type);
+void printObject(Value value, ostream* output);
 void printObject(Value value);
 void printObjectOwnedAddresses(Value value);
 uint32_t hashString(const char* chars, int length);

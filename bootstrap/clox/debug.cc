@@ -11,13 +11,8 @@ Debugger::Debugger() {
 }
 
 void Debugger::setChunk(Chunk* chunkIn) {
-    unsigned char* bytecode1 = chunkIn->getCodePtr();
-
     chunk = chunkIn;
-
-    unsigned char* bytecode2 = chunkIn->getCodePtr();
-
-
+    inlineConstantCount = 0;
 }
 
 void Debugger::debug(const string& name){
@@ -33,11 +28,19 @@ int Debugger::simpleInstruction(const string& name, int offset) {
 }
 
 int Debugger::constantInstruction(const string& name, int offset) {
-    uint8_t constantIndex = chunk->getCodePtr()[offset + 1];
-    Value constantValue = chunk->getConstant(constantIndex);
-    printf("%-16s %4d '", name.c_str(), constantIndex);
-    printValue(constantValue);
-    cout << "'" << endl;
+    byte constantIndex = chunk->getCodePtr()[offset + 1];
+    if (constantIndex < chunk->getConstantsSize()){
+        Value constantValue = chunk->getConstant(constantIndex);
+        printf("%-16s %4d '", name.c_str(), constantIndex);
+        printValue(constantValue);
+        cout << "'" << endl;
+    } else if (constantIndex < (chunk->getConstantsSize() + inlineConstantCount)){
+        printf("%-16s %4d Inline\n", name.c_str(), constantIndex);
+    }
+    else {
+        printf("%-16s %4d Out of range\n", name.c_str(), constantIndex);
+    }
+
     return offset + 2;
 }
 
@@ -93,6 +96,41 @@ int Debugger::debugInstruction(int offset){
         NUMBER_ARG(OP_GET_LENGTH)
         NUMBER_ARG(OP_GET_LOCAL)
         NUMBER_ARG(OP_SET_LOCAL)
+        case OP_LOAD_INLINE_CONSTANT: {
+            offset++;  // op
+            unsigned char type = chunk->getCodePtr()[offset];
+            offset++;  // type
+            printf("%-16s %4d ", "OP_LOAD_INLINE_CONSTANT", inlineConstantCount);
+            inlineConstantCount++;
+
+            switch (type) {
+                case 0: {
+                    double value;
+                    assert(sizeof(value) == 8);
+                    memcpy(&value, &chunk->getCodePtr()[offset], sizeof(value));
+                    offset += sizeof(value);
+                    printf("num %4f \n", value);
+                    break;
+                }
+                case (1 + OBJ_STRING): {
+                    int length;
+                    assert(sizeof(length) == 4);
+                    memcpy(&length, &chunk->getCodePtr()[offset], sizeof(length));
+                    offset += sizeof(length);
+                    cout << "str '";
+                    for (int i=0;i<length;i++){
+                        cout << chunk->getCodePtr()[offset+i];
+                    }
+                    cout << "'" << endl;
+                    offset += length;
+                    break;
+                }
+                default:
+                    printf("%-16s %d Invalid Value Type \n", "OP_LOAD_INLINE_CONSTANT", type);
+                    break;
+            }
+            return offset;
+        }
         default:
             cout << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;

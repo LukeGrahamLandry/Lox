@@ -5,9 +5,10 @@
 #include <string>
 #include "list.cc"
 #include "value.h"
+#include <fstream>
 
 
-typedef uint8_t const_index_t;
+typedef byte const_index_t;
 
 typedef enum {
     OP_GET_CONSTANT,
@@ -38,6 +39,7 @@ typedef enum {
     OP_GET_LENGTH,
     OP_GET_LOCAL,
     OP_SET_LOCAL,
+    OP_LOAD_INLINE_CONSTANT
 } OpCode;
 
 class Chunk {
@@ -45,23 +47,31 @@ class Chunk {
         Chunk();
         ~Chunk();
         Chunk(const Chunk& other);
-        void write(uint8_t byte, int line);
+        Chunk(ArrayList<byte>* exportedBinaryData);
+        void write(byte byte, int line);
         int getLineNumber(int tokenIndex);
         const_index_t addConstant(Value value);
+        void rawAddConstant(Value value);
         int getCodeSize();
         unsigned char* getCodePtr();
         void printConstantsArray();
         Value getConstant(int index);
+        unsigned char getInstruction(int offset);
+        int popInstruction();
+        ArrayList<byte>* exportAsBinary();
+        void exportAsBinary(const char* path);
+        int getConstantsSize();
 
-    unsigned char getInstruction(int offset);
-
-    int popInstruction();
-
+        static Chunk* importFromBinary(const char* path);
 private:
-    ArrayList<uint8_t>* code;
+    ArrayList<byte>* code;
     ArrayList<int>* lines;
     ValueArray* constants;
 
+    uint32_t getExportSize();
 };
+
+void appendAsBytes(ArrayList<byte>* data, uint32_t number);
+void appendAsBytes(ArrayList<byte>* data, double number);
 
 #endif

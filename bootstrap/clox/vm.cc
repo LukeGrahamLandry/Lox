@@ -14,6 +14,9 @@ VM::VM() {
     globals = Table();
     strings = Set();
     tempSavedChunk = nullptr;
+
+    out = &cout;
+    err = &cerr;
 }
 
 VM::~VM() {
@@ -24,6 +27,7 @@ VM::~VM() {
 void VM::setChunk(Chunk* chunkIn){
     chunk = chunkIn;
     ip = chunk->getCodePtr();
+    resetStack();
 
     #ifdef VM_DEBUG_TRACE_EXECUTION
     debug.setChunk(chunk);
@@ -97,11 +101,11 @@ InterpretResult VM::run() {
     #ifdef VM_SAFE_MODE
     #define ASSERT_POP(count)                       \
                 if (count > stackHeight()){         \
-                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack of size %d. This is probably a compiler bug.", count, stackHeight()) \
+                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack of size %d.", count, stackHeight()) \
                     return INTERPRET_RUNTIME_ERROR; \
                 }
     #else
-    #define ASSERT_POP(delta)
+    #define ASSERT_POP(count)
     #endif
 
     #define ASSERT_NUMBER(value, message)                   \
@@ -127,10 +131,6 @@ InterpretResult VM::run() {
                  break;                          \
             }
 
-    #ifdef VM_DEBUG_TRACE_EXECUTION
-    printDebugInfo();
-    #endif
-
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
         printValueArray(stack, stackTop);
@@ -138,7 +138,7 @@ InterpretResult VM::run() {
         debug.debugInstruction(instructionOffset);
         #endif
 
-        uint8_t instruction;
+        byte instruction;
         switch (instruction = READ_BYTE()) {
             case OP_ADD:
                 ASSERT_POP(2)
@@ -224,12 +224,12 @@ InterpretResult VM::run() {
 
                 if (IS_STRING(array)){
                     ObjString* str = AS_STRING(array);
-                    if (index < 0) index += str->length;
-                    if (index >= str->length){
+                    uint32_t realIndex = index < 0 ? str->length + index : index;
+                    if (realIndex >= str->length){
                         FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", index, str->chars);
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    result = OBJ_VAL(copyString(&strings, &objects, str->chars + index, 1));
+                    result = OBJ_VAL(copyString(&strings, &objects, str->chars + realIndex, 1));
                 } else {
                     runtimeError("Unrecognised sequence type");
                     return INTERPRET_RUNTIME_ERROR;
@@ -250,21 +250,21 @@ InterpretResult VM::run() {
 
                 if (IS_STRING(array)){
                     ObjString* str = AS_STRING(array);
-                    if (endIndex < 0) endIndex += str->length;
-                    if (startIndex < 0) startIndex += str->length;
-                    if (endIndex > str->length || endIndex < 0){
-                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", endIndex, str->chars);
+                    uint32_t realEndIndex = endIndex < 0 ? str->length + endIndex : endIndex;
+                    uint32_t realStartIndex = startIndex < 0 ? str->length + startIndex : startIndex;
+                    if (realEndIndex > str->length){
+                        FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", endIndex, str->chars);
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    if (startIndex >= str->length || startIndex < 0){
-                        FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", startIndex, str->chars);
+                    if (realStartIndex >= str->length){
+                        FORMAT_RUNTIME_ERROR("Index '%u' out of bounds for string '%s'.", startIndex, str->chars);
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    if (endIndex <= startIndex) {
-                        FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", startIndex, endIndex);
+                    if (realEndIndex <= realStartIndex) {
+                        FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", realStartIndex, realEndIndex);
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    ObjString* newString = copyString(&strings, &objects, str->chars + startIndex, endIndex - startIndex);
+                    ObjString* newString = copyString(&strings, &objects, str->chars + realStartIndex, realEndIndex - realStartIndex);
                     result = OBJ_VAL(newString);
                 } else {
                     runtimeError("Unrecognised sequence type");
@@ -279,7 +279,7 @@ InterpretResult VM::run() {
                 int stackOffset = READ_BYTE();
                 ASSERT_SEQUENCE(peek(stackOffset), "Length target must be a sequence")
                 Value array = peek(stackOffset);
-                int result;
+                double result;
                 if (IS_STRING(array)){
                     ObjString* str = AS_STRING(array);
                     result = str->length;
@@ -305,8 +305,8 @@ InterpretResult VM::run() {
                 break;
             case OP_PRINT:
                 ASSERT_POP(1)
-                printValue(pop());
-                cout << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
+                printValue(pop(), out);
+                *out << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
                 break;
             case OP_RETURN:
                 return INTERPRET_OK;
@@ -339,6 +339,9 @@ InterpretResult VM::run() {
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
+            case OP_LOAD_INLINE_CONSTANT:
+                loadInlineConstant();
+                break;
             #ifdef VM_ALLOW_DEBUG_BREAK_POINT
             case OP_DEBUG_BREAK_POINT:
                 return INTERPRET_DEBUG_BREAK_POINT;
@@ -362,14 +365,14 @@ InterpretResult VM::run() {
 }
 
 void VM::runtimeError(const string& message){
-    cerr << message << endl;
+    *err << message << endl;
     runtimeError();
 }
 
 void VM::runtimeError(){
     int instructionOffset = (int) (ip - chunk->getCodePtr() - 1);
     int line = chunk->getLineNumber(instructionOffset);
-    cerr << "[line " << line << "] in script" << endl;
+    *err << "[line " << line << "] in script" << endl;
 }
 
 bool VM::isFalsy(Value value){
@@ -400,15 +403,43 @@ void VM::freeObjects(){
 }
 
 void VM::printDebugInfo() {
-    cout << "Current Chunk Constants:" << endl;
+    *out << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
-    cout << "Allocated Heap Objects:" << endl;
+    *out << "Allocated Heap Objects:" << endl;
     printObjectsList(objects);
-    cout << "Global Variables:";
+    *out << "Global Variables:";
     globals.printContents();
-    cout << "Current Stack:" << endl;
+    *out << "Current Stack:" << endl;
     printValueArray(stack, stackTop - 1);
-    cout << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
+    *out << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
+}
+
+void VM::loadInlineConstant(){
+    unsigned char type = *ip;
+    ip++;
+    switch (type) {
+        case 0: {
+            double value;
+            assert(sizeof(value) == 8);
+            memcpy(&value, ip, sizeof(value));
+            ip += sizeof(value);
+            chunk->rawAddConstant(NUMBER_VAL(value));
+            break;
+        }
+        case (1 + OBJ_STRING): {
+            int length;
+            assert(sizeof(length) == 4);
+            memcpy(&length, ip, sizeof(length));
+            ip += sizeof(length);
+            ObjString* str = copyString(&strings, &objects, (char*) ip, length);
+            chunk->rawAddConstant(OBJ_VAL(str));
+            ip += length;
+            break;
+        }
+        default:
+            FORMAT_RUNTIME_ERROR("Invalid Value Type '%d'", type);
+            break;
+    }
 }
 
 #undef FORMAT_RUNTIME_ERROR

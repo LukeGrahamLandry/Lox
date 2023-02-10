@@ -1,4 +1,3 @@
-#include <fstream>
 #include "common.h"
 #include "chunk.h"
 #include "debug.h"
@@ -6,6 +5,7 @@
 
 char* readFile(const char* path);
 void script(VM *vm, const char *path);
+void bytecode(VM *vm, const char *path);
 void repl(VM *vm);
 
 int main(int argc, const char* argv[]) {
@@ -15,10 +15,18 @@ int main(int argc, const char* argv[]) {
         repl(vm);
     } else if (argc == 2){
         script(vm, argv[1]);
+    } else if (argc == 3 && strcmp(argv[1], "-b") == 0){
+        bytecode(vm, argv[2]);
     }
 
     delete vm;
     return 0;
+}
+
+void bytecode(VM *vm, const char *path) {
+    Chunk* chunk = Chunk::importFromBinary(path);
+    vm->setChunk(chunk);
+    vm->run();
 }
 
 void script(VM *vm, const char *path) {

@@ -442,11 +442,11 @@ void Compiler::synchronize() {
 
 // ==== Boring ====
 
-void Compiler::emitByte(uint8_t byte){
+void Compiler::emitByte(byte byte){
     currentChunk()->write(byte, current.line);
 }
 
-void Compiler::emitBytes(uint8_t byte1, uint8_t byte2){
+void Compiler::emitBytes(byte byte1, byte byte2){
     emitByte(byte1);
     emitByte(byte2);
 }

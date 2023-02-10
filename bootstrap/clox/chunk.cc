@@ -1,7 +1,7 @@
 #include "chunk.h"
 
 Chunk::Chunk(){
-    code = new ArrayList<uint8_t>();
+    code = new ArrayList<byte>();
     constants = new ValueArray();
     lines = new ArrayList<int>();  // run-length encoded: count, line, count, line
 }
@@ -13,7 +13,7 @@ Chunk::~Chunk(){
 }
 
 Chunk::Chunk(const Chunk& other){
-    code = new ArrayList<uint8_t>(*other.code);
+    code = new ArrayList<byte>(*other.code);
     constants = new ValueArray();
     delete constants->values;
     constants->values = new ArrayList<Value>(*other.constants->values);
@@ -21,7 +21,7 @@ Chunk::Chunk(const Chunk& other){
 }
 
 
-void Chunk::write(uint8_t byte, int line){
+void Chunk::write(byte byte, int line){
     code->push(byte);
 
     if (!lines->isEmpty()){
@@ -39,6 +39,8 @@ void Chunk::write(uint8_t byte, int line){
 
 // This has O(n) but since it will only be called while debugging or when an exception is thrown, it doesn't matter.
 int Chunk::getLineNumber(int opcodeOffset){
+    if (lines->isEmpty()) return -1;
+
     int currentTokenIndex = 0;
     for (int i=0;i<lines->count-1;i+=2){
         int count = lines->get(i);
@@ -55,8 +57,13 @@ int Chunk::getLineNumber(int opcodeOffset){
 const_index_t Chunk::addConstant(Value value){
     // TODO: another opcode for reading two bytes for the index for programs long enough to need more than 256
     if (constants->size() >= 256){
-        cerr << "Too Many Constants In Chunk" << endl;
-        return 0;
+        cerr << "Too many constants in chunk." << endl;
+        return -1;
+    }
+
+    if (IS_NIL(value) || IS_BOOL(value)){
+        cerr << "Cannot add singleton value to chunk constants." << endl;
+        return -1;
     }
 
     // Loop through all existing constants to deduplicate.
@@ -77,12 +84,20 @@ const_index_t Chunk::addConstant(Value value){
         }
     }
 
-    constants->add(value);
+    rawAddConstant(value);
     return constants->size() - 1;
 }
 
+void Chunk::rawAddConstant(Value value){
+    constants->add(value);
+}
+
 int Chunk::getCodeSize() {
-    return code->count;
+    return (int) code->count;
+}
+
+int Chunk::getConstantsSize(){
+    return constants->size();
 }
 
 unsigned char *Chunk::getCodePtr() {
@@ -90,8 +105,8 @@ unsigned char *Chunk::getCodePtr() {
 }
 
 unsigned char Chunk::getInstruction(int offset) {
-    if (offset < 0) offset += code->count;
-    return code->get(offset);
+    uint32_t index = offset < 0 ? code->count + offset: offset;
+    return code->get(index);
 }
 
 int Chunk::popInstruction() {
@@ -104,4 +119,139 @@ void Chunk::printConstantsArray() {
 
 Value Chunk::getConstant(int index) {
     return constants->get(index);
+}
+
+
+// length as uint32
+// OP_LOAD_INLINE_CONSTANT
+// - 0
+//    8 byte double
+// - 1
+//    length as uint32
+//    string characters
+// the rest of the code
+ArrayList<byte>* Chunk::exportAsBinary(){
+    ArrayList<byte>* output = new ArrayList<byte>();
+    uint32_t size = getExportSize();
+    appendAsBytes(output, size);
+
+    assert(sizeof(double) == 8);
+    for (int i=0;i<constants->size();i++){
+        output->push(OP_LOAD_INLINE_CONSTANT);
+        Value value = constants->get(i);
+        switch (value.type) {
+            case VAL_NUMBER: {
+                output->push(0);
+                appendAsBytes(output, AS_NUMBER(value));
+                break;
+            }
+            case VAL_OBJ: {
+                ObjType type = AS_OBJ(value)->type;
+                output->push(1 + type);
+                switch (type) {
+                    case OBJ_STRING: {
+                        ObjString* str = AS_STRING(value);
+                        assert(sizeof(str->length) == 4);
+                        appendAsBytes(output, str->length);
+                        output->appendMemory(cast(byte*, str->chars), str->length);
+                        break;
+                    }
+                    default:
+                        cerr << "Invalid Object Type " << type << endl;
+                        output->pop();
+                        output->pop();
+                        break;
+                }
+                break;
+            }
+            default:
+                cerr << "Invalid Constant Type " << value.type << endl;
+                output->pop();
+                break;
+        }
+    }
+
+
+    output->appendMemory(code->peek(0), code->count);
+    return output;
+}
+
+uint32_t Chunk::getExportSize(){
+    uint32_t total = 0;
+    for (int i=0;i<constants->size();i++){
+        Value value = constants->get(i);
+        total += 2;
+        switch (value.type) {
+            case VAL_NUMBER: {
+                total += sizeof(double);
+                break;
+            }
+            case VAL_OBJ: {
+                ObjType type = AS_OBJ(value)->type;
+                switch (type) {
+                    case OBJ_STRING: {
+                        ObjString* str = AS_STRING(value);
+                        total += sizeof(str->length);
+                        total += str->length;
+                        break;
+                    }
+                    default:
+                        cerr << "Invalid Object Type " << type << endl;
+                        total -= 2;
+                        break;
+                }
+                break;
+            }
+            default:
+                cerr << "Invalid Constant Type " << value.type << endl;
+                total -= 2;
+                break;
+        }
+    }
+
+    total += code->count;
+    return total;
+}
+
+void Chunk::exportAsBinary(const char* path) {
+    ArrayList<byte>* data = exportAsBinary();
+    ofstream stream;
+    stream.open(path, ios::out | ios::binary);
+    stream.write(cast(char*, data->peek(0)), data->count);
+    stream.close();
+    delete data;
+}
+
+
+// The chunk owns the array list now.
+Chunk::Chunk(ArrayList<byte>* exportedBinaryData){
+    code = exportedBinaryData;
+    constants = new ValueArray();
+    lines = new ArrayList<int>();
+}
+
+Chunk* Chunk::importFromBinary(const char *path) {
+    ifstream stream;
+    stream.open(path, ios::in | ios::binary);
+    uint32_t length = 0;
+    stream.read((char*) &length, sizeof(uint32_t));
+    if (length == 0){
+        return nullptr;
+    }
+    char data[length];
+    stream.read(data, length);
+    stream.close();
+
+    return new Chunk(new ArrayList<byte>(cast(byte*, data), length));
+}
+
+// TODO: do i need to worry about other systems having a different byte order?
+void appendAsBytes(ArrayList<byte>* data, uint32_t number){
+    assert(sizeof(number) == 4);
+    data->appendMemory(cast(byte*, &number), sizeof(number));
+}
+
+void appendAsBytes(ArrayList<byte>* data, double number){
+    assert(sizeof(number) == 8);
+    data->appendMemory(cast(byte*, &number), sizeof(number));
 }

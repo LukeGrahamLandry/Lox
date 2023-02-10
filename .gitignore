@@ -6,3 +6,6 @@ bootstrap/clox/clox
 **/.idea
 **/*.h.gch
 bootstrap/clox/clox.dSYM/**
+bootstrap/clox/clox_tests.dSYM/**
+bootstrap/clox/clox_tests
+**/*.blox

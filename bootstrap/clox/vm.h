@@ -22,7 +22,7 @@ public:
     VM();
     ~VM();
 
-    uint8_t* ip;
+    byte* ip;
 
     InterpretResult interpret(Chunk* chunk);
     bool loadFromSource(char *src);
@@ -35,6 +35,12 @@ public:
 
     InterpretResult run();
 
+
+    void setOutput(ostream* target){
+        out = target;
+        err = target;
+    }
+
 private:
     Chunk* tempSavedChunk;
     Compiler compiler;
@@ -46,6 +52,9 @@ private:
     Set strings;   // interned strings. prevents allocating separate memory for duplicated identical strings.
     Table globals;
     Debugger debug;
+
+    ostream* out;
+    ostream* err;
 
     void resetStack();
     void push(Value value);
@@ -68,6 +77,8 @@ private:
     void freeObjects();
 
     int stackHeight();
+
+    void loadInlineConstant();
 };
 
 #endif
