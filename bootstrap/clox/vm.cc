@@ -70,25 +70,39 @@ bool VM::loadFromSource(char* src) {
 }
 
 inline void VM::push(Value value){
+    // TODO: take out this check eventually cause it probably slows it down a bunch and will never happen for valid bytecode.
+    if (stackHeight() >= STACK_MAX){
+        runtimeError("Stack overflow on push.");
+        return;
+    }
+
     *stackTop = value;
     stackTop++;
 }
 
 inline Value VM::pop(){
-    // TODO: take out this check eventually cause it probably slows it down a bunch and will never happen for valid bytecode.
-    if (stackTop == stack){
-        runtimeError("pop called on empty stack. The bytecode must be invalid. ");
-        return NIL_VAL();
-    }
-
     stackTop--;
     return *stackTop;
+}
+
+inline int VM::stackHeight(){
+    return (int) (stackTop - stack);
 }
 
 InterpretResult VM::run() {
     #define READ_BYTE() (*(ip++))
     #define READ_CONSTANT() chunk->getConstant(READ_BYTE())
     #define READ_STRING() (AS_STRING(READ_CONSTANT()))
+
+    #ifdef VM_SAFE_MODE
+    #define ASSERT_POP(count)                       \
+                if (count > stackHeight()){         \
+                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack of size %d. This is probably a compiler bug.", count, stackHeight()) \
+                    return INTERPRET_RUNTIME_ERROR; \
+                }
+    #else
+    #define ASSERT_POP(delta)
+    #endif
 
     #define ASSERT_NUMBER(value, message)                   \
             if (!IS_NUMBER(value)){                         \
@@ -104,11 +118,12 @@ InterpretResult VM::run() {
 
     #define BINARY_OP(op_code, c_op, resultCast) \
             case op_code: {                      \
+                 ASSERT_POP(2)                   \
                  ASSERT_NUMBER(peek(0), "Right operand to '" #c_op "' must be a number.")           \
                  ASSERT_NUMBER(peek(1), string("Left operand to '" #c_op "' must be a number."))    \
                  Value right = pop();            \
                  Value left = pop();             \
-                 push(resultCast(AS_NUMBER(left) c_op AS_NUMBER(right)));              \
+                 push(resultCast(AS_NUMBER(left) c_op AS_NUMBER(right)));                           \
                  break;                          \
             }
 
@@ -126,6 +141,7 @@ InterpretResult VM::run() {
         uint8_t instruction;
         switch (instruction = READ_BYTE()) {
             case OP_ADD:
+                ASSERT_POP(2)
                 if (IS_STRING(peek(0)) && IS_STRING(peek(1))){
                     concatenate();
                 } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))){
@@ -145,7 +161,26 @@ InterpretResult VM::run() {
             case OP_GET_CONSTANT:
                 push(READ_CONSTANT());
                 break;
+            case OP_GET_LOCAL: {
+                char offset = READ_BYTE();
+                if (offset >= stackHeight()) {
+                    FORMAT_RUNTIME_ERROR("Cannot get index %d of size %d. The bytecode must be invalid.", offset, stackHeight());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(stack[offset]);
+                break;
+            }
+            case OP_SET_LOCAL: {
+                char offset = READ_BYTE();
+                if (offset >= stackHeight()) {
+                    FORMAT_RUNTIME_ERROR("Cannot set index %d of size %d. The bytecode must be invalid.", offset, stackHeight());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                stack[offset] = peek(0);
+                break;
+            }
             case OP_DEFINE_GLOBAL: {
+                ASSERT_POP(1)
                 // TODO: This doesn't check for redefining, but I'll do that as a compiler pass.
                 ObjString* name = READ_STRING();
                 globals.set(name, peek(0));
@@ -153,6 +188,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_SET_GLOBAL: {
+                ASSERT_POP(1)
                 ObjString* name = READ_STRING();
                 if (globals.set(name, peek(0))){
                     globals.remove(name);
@@ -179,6 +215,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_ACCESS_INDEX: {
+                ASSERT_POP(2)
                 ASSERT_NUMBER(peek(0), "Array index must be an integer.")
                 ASSERT_SEQUENCE(peek(1), "Slice target must be a sequence")
                 int index = AS_NUMBER(pop());
@@ -202,6 +239,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_SLICE_INDEX: {
+                ASSERT_POP(3)
                 ASSERT_NUMBER(peek(0), "Slice end index must be an integer.")
                 ASSERT_NUMBER(peek(1), "Slice start index must be an integer.")
                 ASSERT_SEQUENCE(peek(2), "Slice target must be a sequence")
@@ -237,6 +275,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_GET_LENGTH: {
+                ASSERT_POP(1)
                 int stackOffset = READ_BYTE();
                 ASSERT_SEQUENCE(peek(stackOffset), "Length target must be a sequence")
                 Value array = peek(stackOffset);
@@ -252,6 +291,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_EXPONENT: {
+                ASSERT_POP(2)
                 ASSERT_NUMBER(peek(0), "Right operand to '**' must be a number.")
                 ASSERT_NUMBER(peek(1), "Left operand to '**' must be a number.")
                 Value right = pop();
@@ -264,8 +304,9 @@ InterpretResult VM::run() {
                 push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
             case OP_PRINT:
+                ASSERT_POP(1)
                 printValue(pop());
-                cout << endl;  // TODO: have a way to print without forcing the new line but should still generally add that for convince.
+                cout << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
                 break;
             case OP_RETURN:
                 return INTERPRET_OK;
@@ -285,12 +326,15 @@ InterpretResult VM::run() {
                 push(BOOL_VAL(valuesEqual(pop(), pop())));
                 break;
             case OP_POP:
-                if (stackTop == stack){
-                    runtimeError("pop called on empty stack. The bytecode must be invalid. ");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
+                ASSERT_POP(1)
                 pop();
                 break;
+            case OP_POP_MANY: {
+                int count = READ_BYTE();
+                ASSERT_POP(count)
+                stackTop -= count;
+                break;
+            }
 
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
@@ -300,7 +344,7 @@ InterpretResult VM::run() {
                 return INTERPRET_DEBUG_BREAK_POINT;
             #endif
 
-            #ifdef VM_HALT_ON_UNRECOGNISED_OPCODE
+            #ifdef VM_SAFE_MODE
             default:
                 FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - chunk->getCodePtr() - 1, chunk->getCodeSize());
                 return INTERPRET_RUNTIME_ERROR;
@@ -314,6 +358,7 @@ InterpretResult VM::run() {
     #undef BINARY_OP
     #undef READ_STRING
     #undef ASSERT_SEQUENCE
+    #undef ASSERT_POP
 }
 
 void VM::runtimeError(const string& message){

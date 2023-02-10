@@ -4,6 +4,7 @@ Compiler::Compiler(){
     hadError = false;
     panicMode = false;
     objects = nullptr;
+    scopeDepth = 0;
 };
 
 Compiler::~Compiler(){
@@ -34,24 +35,89 @@ bool Compiler::compile(char* src){
 }
 
 void Compiler::declaration(){
-    if (match(TOKEN_VAR)){
-        const_index_t global = parseVariable("Expect variable name.");
-        if (match(TOKEN_EQUAL)){
-            expression();
-        } else {
-            emitByte(OP_NIL);
+    bool isFinal = false;
+    switch (current.type) {
+        case TOKEN_FINAL:
+            isFinal = true;
+            advance();
+        case TOKEN_VAR: {
+            match(TOKEN_VAR);
+
+            parseLocalVariable("Expect variable name.");
+            (*locals.peekLast()).isFinal = isFinal;
+            if (match(TOKEN_EQUAL)){
+                expression();
+                (*locals.peekLast()).assignments++;
+            } else {
+                emitByte(OP_NIL);
+            }
+            defineLocalVariable();
+            consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+            break;
         }
-        consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-        emitBytes(OP_DEFINE_GLOBAL, global);
-    } else {
-        statement();
+        default:
+            statement();
+            break;
     }
 
     if (panicMode) synchronize();
 }
 
+void Compiler::beginScope(){
+    scopeDepth++;
+}
+
+void Compiler::endScope(){
+    // Walk back through the stack and pop off everything in this scope
+    int localsCount = 0;
+    for (int i=locals.count-1;i>=0;i--){
+        Local check = locals.get(i);
+        if (check.depth < scopeDepth) break;  // we reached the end of the scope
+
+        localsCount++;
+        locals.pop();
+    }
+
+    emitPops(localsCount);
+    scopeDepth--;
+}
+
+void Compiler::block(){
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)){
+        declaration();
+    }
+
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+void Compiler::emitPops(int count){
+    // Future-proof if I increase stack size. I don't want to bother having a two byte operand version of POP.
+    // Since I pop(1) so often, I have a specific opcode that doesn't waste a byte on the argument.
+    while (count > 0){
+        if (count == 1) {
+            emitByte(OP_POP);
+            count--;
+        }
+        else if (count > 255){
+            emitBytes(OP_POP_MANY, 255);
+            count -= 255;
+        }
+        else {
+            emitBytes(OP_POP_MANY, count);
+            count = 0;
+        }
+    }
+}
+
+
 void Compiler::statement(){
     switch (current.type) {
+        case TOKEN_LEFT_BRACE:
+            advance();
+            beginScope();
+            block();
+            endScope();
+            break;
         case TOKEN_PRINT:
             advance();
             expression();
@@ -80,10 +146,67 @@ void Compiler::statement(){
 }
 
 // returns an index into the constants array for the variable name as a string
-const_index_t Compiler::parseVariable(const char* errorMessage) {
+const_index_t Compiler::parseGlobalVariable(const char* errorMessage) {
     consume(TOKEN_IDENTIFIER, errorMessage);
     return identifierConstant(previous);
 }
+
+void Compiler::parseLocalVariable(const char* errorMessage) {
+    consume(TOKEN_IDENTIFIER, errorMessage);
+    declareLocalVariable();
+
+    // TODO: keep the name when in debug mode
+    // identifierConstant(previous);
+}
+
+// for preventing self reference in a definition
+void Compiler::declareLocalVariable(){
+    if (locals.count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
+        errorAt(previous, "Too many local variables in function.");
+        return;
+    }
+
+    Local local;
+    local.depth = -1;
+    local.name = previous;
+    local.assignments = 0;
+    local.isFinal = false;
+
+    for (int i=locals.count-1;i>=0;i--){
+        Local check = locals.get(i);
+        // since <locals> is a stack, the first time you see something of a higher scope, everything will be
+        if (check.depth != -1 && check.depth < scopeDepth) break;
+        if (identifiersEqual(check.name, local.name)) {
+            errorAt(previous, "Already a variable with this name in this scope.");
+        }
+    }
+
+    locals.push(local);
+}
+
+void Compiler::defineLocalVariable(){
+    // Mark initialized
+    (*locals.peekLast()).depth = scopeDepth;
+    // NO-OP at runtime, it just flows over and the stack slot becomes a local
+}
+
+int Compiler::resolveLocal(Token name){
+    for (int i=locals.count-1;i>=0;i--){
+        Local check = locals.get(i);
+        if (identifiersEqual(check.name, name)) {
+            if (check.depth == -1) {
+                errorAt(previous, "Can't read local variable in its own initializer.");
+            }
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool Compiler::identifiersEqual(Token a, Token b) {
+    return a.length == b.length && memcmp(a.start, b.start, a.length) == 0;
+}
+
 
 // returns an index into the constants array for the identifier name as a string
 const_index_t Compiler::identifierConstant(Token name) {
@@ -130,19 +253,46 @@ Value Compiler::createStringValue(const char* chars, int length){
 }
 
 void Compiler::namedVariable(Token name, bool canAssign) {
-    uint8_t global = identifierConstant(name);
+    // TODO: need another opcode if i grow the stack and allow >256 locals
+    int local = resolveLocal(name);
+
+    if (local == -1){
+        errorAt(previous, "Undeclared variable.");
+        return;
+    }
 
     // If the variable is inside a high precedence expression, it has to be a get not a set.
     // Like a * b = c should be a syntax error not parse as a * (b = c).
     if (canAssign && match(TOKEN_EQUAL)){
+        Local* variable = locals.peek(local);
+        if (variable->assignments++ != 0 && variable->isFinal) {
+            errorAt(previous, "Cannot assign to final variable.");
+            return;
+        }
         expression();
-        emitBytes(OP_SET_GLOBAL, global);
+        emitBytes(OP_SET_LOCAL, local);
     } else {
-        emitBytes(OP_GET_GLOBAL, global);
+        emitGetAndCheckRedundantPop(OP_GET_LOCAL, OP_SET_LOCAL, local);
     }
-
 }
 
+void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument){
+    // Optimisation: if the last instruction was a setter expression statement,
+    // the stack just had the variable we want so why popping it off and putting it back.
+    // This makes it faster and saves 3 bytes every time: SET I POP GET I -> SET I.
+    // This seems to break the assertion about statements not changing the stack size,
+    // but really it's just rewriting "x = 1; print x;" as "print x = 1;"
+    if (chunk->getCodeSize() >= 3){
+        bool justPopped = chunk->getInstruction(-1) == OP_POP;
+        bool wasSame = chunk->getInstruction(-2) == argument;
+        bool justSetLocal = chunk->getInstruction(-3) == checkInstruction || chunk->getInstruction(-3) == emitInstruction;
+        if (justPopped && wasSame && justSetLocal){
+            chunk->popInstruction();  // remove the pop
+            return;
+        }
+    }
+    emitBytes(emitInstruction, argument);
+}
 
 void Compiler::parsePrecedence(Precedence precedence){
     advance();
@@ -211,7 +361,7 @@ void Compiler::parsePrecedence(Precedence precedence){
             DOUBLE_BINARY_INFIX_OP(TOKEN_GREATER_EQUAL, PREC_COMPARISON, OP_LESS, OP_NOT)
             DOUBLE_BINARY_INFIX_OP(TOKEN_LESS_EQUAL, PREC_COMPARISON, OP_GREATER, OP_NOT)
             case TOKEN_EQUAL:
-                errorAt(current, "Invalid assignment target");
+                errorAt(current, "Invalid assignment target.");
                 return;
             case TOKEN_LEFT_SQUARE_BRACKET:
                 if (precedence > PREC_INDEX) return;
@@ -303,21 +453,12 @@ void Compiler::emitBytes(uint8_t byte1, uint8_t byte2){
 
 void Compiler::emitConstantAccess(Value value){
     // just in-case I call this by accident instead of writing the opcode myself.
-    if (IS_BOOL(value)){
-        if (AS_BOOL(value)){
-            emitByte(OP_TRUE);
-        } else {
-            emitByte(OP_FALSE);
-        }
-        return;
-    } else if (IS_NIL(value)){
-        emitByte(OP_NIL);
-        return;
+    if (IS_BOOL(value)) AS_BOOL(value) ? emitByte(OP_TRUE) : emitByte(OP_FALSE);
+    else if (IS_NIL(value)) emitByte(OP_NIL);
+    else {
+        const_index_t location = chunk->addConstant(value);
+        emitBytes(OP_GET_CONSTANT, location);
     }
-
-    // TODO: deduplicate the constants array so we'd write the old index instead of adding a new one with the same value.
-    const_index_t location = chunk->addConstant(value);
-    emitBytes(OP_GET_CONSTANT, location);
 }
 
 void Compiler::advance(){

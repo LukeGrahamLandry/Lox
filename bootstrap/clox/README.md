@@ -70,7 +70,7 @@ that are declared after the function definition as long as they're in the same s
 Write the bytecode generation code in lox. 
 
 I still want to be able to compile code written in the book's version of lox.
-So any extra syntax (types) I add to give hints to the optimiser, should be a super set, and it should just guess if it's missing. 
+So any extra syntax (types) I push to give hints to the optimiser, should be a super set, and it should just guess if it's missing. 
 Guessing is good anyway ex. var x = call(); if I know call always returns an int, why am I writing the type of the variable again.  
 The 
 
@@ -106,18 +106,18 @@ The VM would just always cast to the type required by the operator so the Value 
 
 How the book does variables:
 var name = 10; 
-    - index = add to constants "name"
+    - index = push to constants "name"
     - emit: OP_GET_CONSTANT write(10)
     - emit: OP_DEFINE_GLOBAL index
 Recall: 
     write(v): put Value(v), with wasted space for type tag, in the chunk's constant array then write byte(index) to the code array.
     They don't export the opcode and constant data as one stream of bytes. 
     VM OP_GET_CONSTANT: read the next code byte as an index to get from the constants array and push to the stack.
-Now we add VM OP_DEFINE_GLOBAL: 
+Now we push VM OP_DEFINE_GLOBAL: 
     - name = next byte as index to constant array
     - in the globals hash table set: name = pop()
 To retrieve, ex: name;
-    - index = add to constants "name"
+    - index = push to constants "name"
     - emit: OP_GET_GLOBAL index
 VM OP_GET_GLOBAL:
     - name = next byte as index to constant array

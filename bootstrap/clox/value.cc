@@ -9,7 +9,7 @@ ValueArray::~ValueArray(){
 }
 
 void ValueArray::add(Value value){
-    values->add(value);
+    values->push(value);
 }
 
 Value ValueArray::get(int index){

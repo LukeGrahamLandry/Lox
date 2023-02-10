@@ -28,6 +28,13 @@ typedef enum {
     PREC_PRIMARY
 } Precedence;
 
+typedef struct {
+    Token name;
+    int depth;
+    bool isFinal;
+    int assignments;
+} Local;
+
 class Compiler {
 public:
     Compiler();
@@ -45,7 +52,12 @@ private:
     bool hadError;
     bool panicMode;
     Scanner* scanner;
+
+    #ifdef COMPILER_DEBUG_PRINT_CODE
     Debugger debugger;
+    #endif
+    ArrayList<Local> locals;
+    int scopeDepth;
 
     void expression();
     void errorAt(Token& token, const char* message);
@@ -55,7 +67,7 @@ private:
     void emitConstantAccess(Value value);
     Chunk* currentChunk();
     void advance();
-
+    void emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument);
     void number();
 
     void grouping();
@@ -78,9 +90,27 @@ private:
 
     uint8_t identifierConstant(Token name);
 
-    uint8_t parseVariable(const char *errorMessage);
+    uint8_t parseGlobalVariable(const char *errorMessage);
 
     void namedVariable(Token name, bool canAssign);
+
+    void beginScope();
+
+    void endScope();
+
+    void block();
+
+    void declareLocalVariable();
+
+    void defineLocalVariable();
+
+    void parseLocalVariable(const char *errorMessage);
+
+    bool identifiersEqual(Token name, Token name1);
+
+    void emitPops(int count);
+
+    int resolveLocal(Token name);
 };
 
 

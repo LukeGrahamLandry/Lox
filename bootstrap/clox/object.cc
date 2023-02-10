@@ -70,7 +70,7 @@ ObjString* allocateString(char* chars, int length, uint32_t hash) {
     return string;
 }
 
-// Note: this doesn't add it to the linked list! The caller is responsible for not loosing it.
+// Note: this doesn't push it to the linked list! The caller is responsible for not loosing it.
 Obj* allocateObject(size_t size, ObjType type) {
     Obj* object = RAW_OBJ(reallocate(nullptr, 0, size));
     object->type = type;

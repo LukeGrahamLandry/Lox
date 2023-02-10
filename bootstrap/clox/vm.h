@@ -66,6 +66,8 @@ private:
 
     void concatenate();
     void freeObjects();
+
+    int stackHeight();
 };
 
 #endif

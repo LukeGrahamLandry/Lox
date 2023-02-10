@@ -21,7 +21,7 @@ typedef enum {
     TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_NIL, TOKEN_OR,
     TOKEN_PRINT, TOKEN_RETURN, TOKEN_SUPER, TOKEN_THIS,
     TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
-    TOKEN_DEBUGGER, TOKEN_EXIT,
+    TOKEN_DEBUGGER, TOKEN_EXIT, TOKEN_FINAL,
 
     TOKEN_ERROR, TOKEN_EOF
 } TokenType;
@@ -31,6 +31,7 @@ typedef struct {
     const char* start;
     int length;
     int line;
+    int col;
 } Token;
 
 class Scanner {
@@ -42,7 +43,9 @@ private:
     char* start;
     char* current;
     int line;
+    int col;
 
+    void nextLine();
     void skipWhitespace();
     Token string();
     Token number();

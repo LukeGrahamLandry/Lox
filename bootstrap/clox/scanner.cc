@@ -5,11 +5,17 @@
 Scanner::Scanner(char* src){
     start = src;
     current = start;
-    line = 1;
+    line = 0;
+    nextLine();
 }
 
 Scanner::~Scanner(){
 
+}
+
+void Scanner::nextLine(){
+    line++;
+    col = -1;
 }
 
 Token Scanner::scanToken() {
@@ -75,7 +81,7 @@ void Scanner::skipWhitespace() {
                 break;
             case '\n':
                 advance();
-                line++;
+                nextLine();
                 break;
             case '/':  // TODO: block comments
                 if (peekNext() == '/'){
@@ -96,7 +102,7 @@ void Scanner::skipWhitespace() {
 
 Token Scanner::string() {
     while (peek() != '"' && !isAtEnd()){
-        if (peek() == '\n') line++;
+        if (peek() == '\n') nextLine();
         // TODO: support string interpolation
         //       "Hello ${code} \${escape}" gets parsed as "Hello " + code + " ${escape}"
         //       so i'd have to do some sort of recursion thing
@@ -154,6 +160,7 @@ TokenType Scanner::identifierType(){
             LEAF('a', 3, "lse", TOKEN_FALSE)
             LEAF('o', 1, "r", TOKEN_FOR)
             LEAF('u', 1, "n", TOKEN_FUN)
+            LEAF('i', 3, "nal", TOKEN_FINAL)
         END_BRANCH
         START_BRANCH('t')
             LEAF('h', 2, "is", TOKEN_THIS)
@@ -198,6 +205,7 @@ Token Scanner::errorToken(const char *message) const {
     token.start = message;
     token.length = (int)strlen(message);
     token.line = line;
+    token.col = col;
     return token;
 }
 
@@ -207,6 +215,7 @@ Token Scanner::makeToken(TokenType type) {
     token.start = start;
     token.length = (int)(current - start);
     token.line = line;
+    token.col = col;
     return token;
 }
 
@@ -216,6 +225,7 @@ bool Scanner::isAtEnd() {
 
 char Scanner::advance() {
     current++;
+    col++;
     return current[-1];
 }
 

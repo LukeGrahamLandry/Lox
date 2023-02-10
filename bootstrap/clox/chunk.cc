@@ -22,7 +22,7 @@ Chunk::Chunk(const Chunk& other){
 
 
 void Chunk::write(uint8_t byte, int line){
-    code->add(byte);
+    code->push(byte);
 
     if (!lines->isEmpty()){
         int prevLine = lines->get(lines->count - 1);
@@ -33,8 +33,8 @@ void Chunk::write(uint8_t byte, int line){
         }
     }
 
-    lines->add(1);
-    lines->add(line);
+    lines->push(1);
+    lines->push(line);
 }
 
 // This has O(n) but since it will only be called while debugging or when an exception is thrown, it doesn't matter.
@@ -87,6 +87,15 @@ int Chunk::getCodeSize() {
 
 unsigned char *Chunk::getCodePtr() {
     return code->data;
+}
+
+unsigned char Chunk::getInstruction(int offset) {
+    if (offset < 0) offset += code->count;
+    return code->get(offset);
+}
+
+int Chunk::popInstruction() {
+    return code->pop();
 }
 
 void Chunk::printConstantsArray() {

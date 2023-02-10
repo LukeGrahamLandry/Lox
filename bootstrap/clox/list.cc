@@ -9,19 +9,34 @@ template <typename T>
             ArrayList();
             ArrayList(const ArrayList& other);
             ~ArrayList();
-            void add(T value);
+            void push(T value);
             T get(int index);
             void set(int index, T value);
             void resize();
             bool isEmpty();
+            T pop();
+            T* peek(int indexFromFront);
+            T* peekLast();
 
             T* data;
             int count;
             int capacity;
+
     };
 
 template<typename T>
-    bool ArrayList<T>::isEmpty() {
+    inline T* ArrayList<T>::peek(int indexFromFront) {
+        if (isEmpty()) cerr << "Cannot peek empty ArrayList." << endl;
+        return data + indexFromFront;
+    }
+
+template<typename T>
+    inline T* ArrayList<T>::peekLast() {
+        return peek(count - 1);
+    }
+
+template<typename T>
+    inline bool ArrayList<T>::isEmpty() {
         return count == 0 || data == nullptr;
     }
 
@@ -55,10 +70,16 @@ template <typename T>
     }
 
 template <typename T>
-    void ArrayList<T>::add(T value){
+    void ArrayList<T>::push(T value){
         resize();
         data[count] = value;
         count++;
+    }
+
+template <typename T>
+    T ArrayList<T>::pop(){
+        count--;
+        return data[count];
     }
 
 template <typename T>

@@ -27,6 +27,7 @@ typedef enum {
     OP_EXPONENT,
     OP_PRINT,
     OP_POP,
+    OP_POP_MANY,
     OP_DEFINE_GLOBAL,
     OP_DEBUG_BREAK_POINT,
     OP_EXIT_VM,
@@ -34,7 +35,9 @@ typedef enum {
     OP_SET_GLOBAL,
     OP_ACCESS_INDEX,
     OP_SLICE_INDEX,
-    OP_GET_LENGTH
+    OP_GET_LENGTH,
+    OP_GET_LOCAL,
+    OP_SET_LOCAL,
 } OpCode;
 
 class Chunk {
@@ -49,10 +52,16 @@ class Chunk {
         unsigned char* getCodePtr();
         void printConstantsArray();
         Value getConstant(int index);
+
+    unsigned char getInstruction(int offset);
+
+    int popInstruction();
+
 private:
     ArrayList<uint8_t>* code;
     ArrayList<int>* lines;
     ValueArray* constants;
+
 };
 
 #endif

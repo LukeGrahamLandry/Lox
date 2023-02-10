@@ -58,6 +58,11 @@ int Debugger::debugInstruction(int offset){
                 case op:         \
                     return constantInstruction(#op, offset);
 
+    #define NUMBER_ARG(op) \
+            case op:       \
+                printf("%-16s %4d \n", #op, chunk->getCodePtr()[offset + 1]); \
+                return offset + 2;
+
     OpCode instruction = (OpCode) chunk->getCodePtr()[offset];
     switch (instruction){
         SIMPLE(OP_POP)
@@ -84,11 +89,10 @@ int Debugger::debugInstruction(int offset){
         CONSTANT(OP_GET_GLOBAL)
         CONSTANT(OP_SET_GLOBAL)
         CONSTANT(OP_GET_CONSTANT)
-        case OP_GET_LENGTH: {
-            uint8_t stackOffset = chunk->getCodePtr()[offset + 1];
-            printf("%-16s %4d \n", "OP_GET_LENGTH", stackOffset);
-            return offset + 2;
-        }
+        NUMBER_ARG(OP_POP_MANY)
+        NUMBER_ARG(OP_GET_LENGTH)
+        NUMBER_ARG(OP_GET_LOCAL)
+        NUMBER_ARG(OP_SET_LOCAL)
         default:
             cout << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;

@@ -10,6 +10,6 @@ using namespace std;
 #define COMPILER_DEBUG_PRINT_CODE
 #define VM_DEBUG_TRACE_EXECUTION
 #define VM_ALLOW_DEBUG_BREAK_POINT
-#define VM_HALT_ON_UNRECOGNISED_OPCODE
+#define VM_SAFE_MODE
 
 #endif
