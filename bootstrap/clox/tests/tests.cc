@@ -1,7 +1,7 @@
 #include <sstream>
-#include "chunk.h"
-#include "vm.h"
-#include "common.h"
+#include "../chunk.h"
+#include "../vm.h"
+#include "../common.h"
 
 void runTest(bool (*func)(), const char* name);
 bool testChunkExports();
@@ -10,7 +10,7 @@ void runOutputTest(const char* name, const char* code, const char* expectedOutpu
 int passed = 0;
 int total = 0;
 string simpleCode = string("var x = 10; x = 50; { print x + 2 / 2; } var hello = \"hello\"; print \"hi\" + \" \" + hello + \".\";");
-const char* binaryPath = "code.blox";
+const char* binaryPath = "out/code.blox";
 
 int main() {
     runTest(&testChunkExports, "Export chunks as binary");

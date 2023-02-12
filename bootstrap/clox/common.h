@@ -11,6 +11,7 @@ using namespace std;
 #define VM_DEBUG_TRACE_EXECUTION
 #define VM_ALLOW_DEBUG_BREAK_POINT
 #define VM_SAFE_MODE
+#define VM_PROFILING
 
 #define byte uint8_t
 #define cast(targetType, v) (reinterpret_cast<targetType>(v))

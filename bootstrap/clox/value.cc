@@ -26,7 +26,7 @@ void printValue(Value value, ostream* output){
             *output << (AS_BOOL(value) ? "true" : "false");
             break;
         case VAL_NUMBER:
-            *output << AS_NUMBER(value);
+            printf("%.10g", AS_NUMBER(value));
             break;
         case VAL_NIL:
             *output << "nil";

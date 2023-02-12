@@ -39,7 +39,11 @@ typedef enum {
     OP_GET_LENGTH,
     OP_GET_LOCAL,
     OP_SET_LOCAL,
-    OP_LOAD_INLINE_CONSTANT
+    OP_LOAD_INLINE_CONSTANT,
+    OP_JUMP,
+    OP_LOOP,
+    OP_JUMP_IF_FALSE,
+    OP_DYNAMIC_JUMP
 } OpCode;
 
 class Chunk {
@@ -63,6 +67,7 @@ class Chunk {
         int getConstantsSize();
 
         static Chunk* importFromBinary(const char* path);
+        static string opcodeNames[256];
 private:
     ArrayList<byte>* code;
     ArrayList<int>* lines;

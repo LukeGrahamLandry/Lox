@@ -1,6 +1,9 @@
 #include "debug.h"
 #include "value.h"
 
+
+bool Debugger::silent = false;
+
 Debugger::Debugger(Chunk* chunk){
     setChunk(chunk);
 }
@@ -16,6 +19,8 @@ void Debugger::setChunk(Chunk* chunkIn) {
 }
 
 void Debugger::debug(const string& name){
+    if (silent) return;
+
     cout << "== " << name << " ==" << endl;
     for (int offset=0; offset < chunk->getCodeSize();){
         offset = debugInstruction(offset);
@@ -45,6 +50,8 @@ int Debugger::constantInstruction(const string& name, int offset) {
 }
 
 int Debugger::debugInstruction(int offset){
+    if (silent) return 0;
+
     int line = chunk->getLineNumber(offset);
     if (line == lastLine){
         printf("%04d    | ", offset);

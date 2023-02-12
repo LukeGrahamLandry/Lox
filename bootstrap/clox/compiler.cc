@@ -26,7 +26,7 @@ bool Compiler::compile(char* src){
     if (!hadError){
         debugger.setChunk(currentChunk());
         debugger.debug("code");
-        cout << "==========" << endl;
+        if (!Debugger::silent) cout << "==========" << endl;
     }
     #endif
 
@@ -174,7 +174,7 @@ void Compiler::declareLocalVariable(){
 
     for (int i=locals.count-1;i>=0;i--){
         Local check = locals.get(i);
-        // since <locals> is a stack, the first time you see something of a higher scope, everything will be
+        // since <locals> is a stack, the first timeMS you see something of a higher scope, everything will be
         if (check.depth != -1 && check.depth < scopeDepth) break;
         if (identifiersEqual(check.name, local.name)) {
             errorAt(previous, "Already a variable with this name in this scope.");
@@ -279,7 +279,7 @@ void Compiler::namedVariable(Token name, bool canAssign) {
 void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument){
     // Optimisation: if the last instruction was a setter expression statement,
     // the stack just had the variable we want so why popping it off and putting it back.
-    // This makes it faster and saves 3 bytes every time: SET I POP GET I -> SET I.
+    // This makes it faster and saves 3 bytes every timeMS: SET I POP GET I -> SET I.
     // This seems to break the assertion about statements not changing the stack size,
     // but really it's just rewriting "x = 1; print x;" as "print x = 1;"
     if (chunk->getCodeSize() >= 3){

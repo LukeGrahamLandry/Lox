@@ -6,6 +6,8 @@
 #include "value.h"
 #include "compiler.h"
 #include "table.h"
+#include <chrono>
+#include "common.h"
 
 typedef enum {
     INTERPRET_OK,
@@ -40,6 +42,13 @@ public:
         out = target;
         err = target;
     }
+
+    #ifdef VM_PROFILING
+    static long instructionTimeTotal[256];
+    static int instructionCount[256];
+    #endif
+
+    static void printTimeByInstruction();
 
 private:
     Chunk* tempSavedChunk;
@@ -86,5 +95,7 @@ private:
 
     double getSequenceLength(Value array);
 };
+
+
 
 #endif

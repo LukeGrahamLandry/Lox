@@ -255,3 +255,40 @@ void appendAsBytes(ArrayList<byte>* data, double number){
     assert(sizeof(number) == 8);
     data->appendMemory(cast(byte*, &number), sizeof(number));
 }
+
+
+#define OP(name) [name] = #name,
+
+string Chunk::opcodeNames[256] = {
+        OP(OP_GET_CONSTANT)
+        OP(OP_NIL)
+        OP(OP_TRUE)
+        OP(OP_FALSE)
+        OP(OP_EQUAL)
+        OP(OP_GREATER)
+        OP(OP_LESS)
+        OP(OP_ADD)
+        OP(OP_SUBTRACT)
+        OP(OP_MULTIPLY)
+        OP(OP_DIVIDE)
+        OP(OP_NEGATE)
+        OP(OP_NOT)
+        OP(OP_RETURN)
+        OP(OP_EXPONENT)
+        OP(OP_PRINT)
+        OP(OP_POP)
+        OP(OP_POP_MANY)
+        OP(OP_DEFINE_GLOBAL)
+        OP(OP_DEBUG_BREAK_POINT)
+        OP(OP_EXIT_VM)
+        OP(OP_GET_GLOBAL)
+        OP(OP_SET_GLOBAL)
+        OP(OP_ACCESS_INDEX)
+        OP(OP_SLICE_INDEX)
+        OP(OP_GET_LENGTH)
+        OP(OP_GET_LOCAL)
+        OP(OP_SET_LOCAL)
+        OP(OP_LOAD_INLINE_CONSTANT)
+};
+
+#undef OP

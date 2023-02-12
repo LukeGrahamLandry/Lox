@@ -10,6 +10,7 @@ public:
     void setChunk(Chunk* chunk);
     void debug(const string& name);
     int debugInstruction(int offset);
+    static bool silent;
 
 
 private:

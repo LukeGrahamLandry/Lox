@@ -7,7 +7,7 @@ list.o: list.cc memory.o
 value.o: value.h value.cc list.o object.o
 	g++ -c value.cc list.o object.o -g
 
-chunk.o: chunk.h chunk.cc list.o value.o 
+chunk.o: chunk.h chunk.cc list.o value.o
 	g++ -c chunk.cc list.o value.o -g
 
 debug.o: debug.h debug.cc chunk.o value.o
@@ -28,17 +28,15 @@ object.o: object.cc object.h
 table.o: table.cc table.h
 	g++ -c table.cc -g
 
-tests: tests.cc chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h tests.o
-	g++ -o clox_tests tests.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
+tests: tests/tests.cc chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h
+	g++ -o out/clox_tests tests/tests.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
 
 main: main.cc chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h
-	g++ -o clox main.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
+	g++ -o out/clox main.cc chunk.o list.o memory.o value.o debug.o vm.o compiler.o scanner.o object.o table.o -g
 
 clean:
 	rm -r *.o
-	rm clox
-	rm clox_tests
-	rm -r clox.dSYM
-	rm -r clox_tests.dSYM
+	rm -r out
+	mkdir "out"
 
-all: main
+all: main tests

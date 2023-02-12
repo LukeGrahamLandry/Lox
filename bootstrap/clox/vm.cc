@@ -7,6 +7,12 @@
         fprintf(stderr, format, __VA_ARGS__); \
         runtimeError("");
 
+
+#ifdef VM_PROFILING
+long VM::instructionTimeTotal[256] = {};
+int VM::instructionCount[256] = {};
+#endif
+
 VM::VM() {
     resetStack();
     objects = nullptr;
@@ -52,7 +58,6 @@ bool VM::loadFromSource(char* src) {
 
     tempSavedChunk = new Chunk();
 
-    InterpretResult result;
     compiler.strings = &strings;
     compiler.setChunk(tempSavedChunk);
     if (compiler.compile(src)){
@@ -134,9 +139,13 @@ InterpretResult VM::run() {
 
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
-        printValueArray(stack, stackTop);
+        if (!Debugger::silent) printValueArray(stack, stackTop);
         int instructionOffset = (int) (ip - chunk->getCodePtr());
         debug.debugInstruction(instructionOffset);
+        #endif
+
+        #ifdef VM_PROFILING
+        auto loopStart = std::chrono::high_resolution_clock::now();
         #endif
 
         byte instruction;
@@ -314,6 +323,12 @@ InterpretResult VM::run() {
                 return INTERPRET_RUNTIME_ERROR;
             #endif
         }
+
+        #ifdef VM_PROFILING
+        auto loopEnd = std::chrono::high_resolution_clock::now();
+        instructionTimeTotal[instruction] += std::chrono::duration_cast<std::chrono::nanoseconds>(loopEnd - loopStart).count();
+        instructionCount[instruction]++;
+        #endif
     }
 
     #undef READ_BYTE
@@ -436,6 +451,7 @@ bool VM::accessSequenceSlice(Value array, int startIndex, int endIndex, Value* r
             FORMAT_RUNTIME_ERROR("Invalid sequence slice. Start: '%d' (inclusive), End: '%d' (exclusive).", realStartIndex, realEndIndex);
             return INTERPRET_RUNTIME_ERROR;
         }
+
         ObjString* newString = copyString(&strings, &objects, AS_CSTRING(array) + realStartIndex, (int) (realEndIndex - realStartIndex));
         *result = OBJ_VAL(newString);
         return true;
@@ -453,6 +469,27 @@ double VM::getSequenceLength(Value array){
         runtimeError("Unrecognised sequence type");
         return -1;
     }
+}
+
+void VM::printTimeByInstruction(){
+    #ifdef VM_PROFILING
+        cout << "VM Time per Instruction Type" << endl;
+        long totalTime = 0;
+        long totalLoops = 0;
+        for (int i=0;i<256;i++){
+            totalTime += instructionTimeTotal[i];
+            totalLoops += instructionCount[i];
+        }
+        printf("%25s: %10ld ns (%.2f%%) for %7ld times (%.2f%%)\n","total", totalTime, 100.0, totalLoops, 100.0);
+
+        for (int i=0;i<256;i++){
+            if (instructionCount[i] > 0) {
+                double percentTime = (double) instructionTimeTotal[i] / (double) totalTime * 100;
+                double percentLoops = (double) instructionCount[i] / (double) totalLoops * 100;
+                printf("%25s: %10ld ns (%5.1f%%) for %7d times (%.2f%%)\n", Chunk::opcodeNames[i].c_str(), instructionTimeTotal[i], percentTime, instructionCount[i], percentLoops);
+            }
+        }
+    #endif
 }
 
 #undef FORMAT_RUNTIME_ERROR

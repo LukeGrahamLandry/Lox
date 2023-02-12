@@ -17,6 +17,9 @@ int main(int argc, const char* argv[]) {
         script(vm, argv[1]);
     } else if (argc == 3 && strcmp(argv[1], "-b") == 0){
         bytecode(vm, argv[2]);
+    } else if (argc == 3 && strcmp(argv[1], "-s") == 0){
+        Debugger::silent = true;
+        script(vm, argv[2]);
     }
 
     delete vm;
