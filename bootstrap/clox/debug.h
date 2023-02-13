@@ -20,6 +20,8 @@ private:
 
     int simpleInstruction(const string& name, int offset);
     int constantInstruction(const string& name, int offset);
+
+    int jumpInstruction(const char *name, int sign, Chunk *chunk, int offset);
 };
 
 #endif

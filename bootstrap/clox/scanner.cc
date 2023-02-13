@@ -144,9 +144,9 @@ TokenType Scanner::identifierType(){
 
     #define END_BRANCH } } else break;
 
+
     switch (*start){
         KEYWORD('a', 2, "nd", TOKEN_AND)
-        KEYWORD('c', 4, "lass", TOKEN_CLASS)
         KEYWORD('i', 1, "f", TOKEN_IF)
         KEYWORD('n', 2, "il", TOKEN_NIL)
         KEYWORD('o', 1, "r", TOKEN_OR)
@@ -156,6 +156,7 @@ TokenType Scanner::identifierType(){
         KEYWORD('v', 2, "ar", TOKEN_VAR)
         KEYWORD('w', 4, "hile", TOKEN_WHILE)
         KEYWORD('d', 7, "ebugger", TOKEN_DEBUGGER)
+        KEYWORD('b', 4, "reak", TOKEN_BREAK)
         START_BRANCH('f')
             LEAF('a', 3, "lse", TOKEN_FALSE)
             LEAF('o', 1, "r", TOKEN_FOR)
@@ -169,6 +170,10 @@ TokenType Scanner::identifierType(){
         START_BRANCH('e')
             LEAF('l', 2, "se", TOKEN_ELSE)
             LEAF('x', 2, "it", TOKEN_EXIT)
+        END_BRANCH
+        START_BRANCH('c')
+            LEAF('l', 3, "ass", TOKEN_CLASS)
+            LEAF('o', 6, "ntinue", TOKEN_CONTINUE)
         END_BRANCH
     }
 

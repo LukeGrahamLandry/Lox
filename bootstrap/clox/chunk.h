@@ -52,7 +52,7 @@ class Chunk {
         ~Chunk();
         Chunk(const Chunk& other);
         Chunk(ArrayList<byte>* exportedBinaryData);
-        void write(byte byte, int line);
+        void write(byte b, int line);
         int getLineNumber(int tokenIndex);
         const_index_t addConstant(Value value);
         void rawAddConstant(Value value);
@@ -65,6 +65,7 @@ class Chunk {
         ArrayList<byte>* exportAsBinary();
         void exportAsBinary(const char* path);
         int getConstantsSize();
+        void setCodeAt(int index, byte value);
 
         static Chunk* importFromBinary(const char* path);
         static string opcodeNames[256];

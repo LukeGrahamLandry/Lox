@@ -15,16 +15,41 @@ template <typename T>
             void set(uint index, T value);
             bool isEmpty();
             T pop();
+            void popMany(int count);
             T* peek(uint indexFromFront);
             T* peekLast();
             void grow(uint delta);
             void appendMemory(T* source, uint length);
             ArrayList<T> copy();
+            T remove(uint index);
 
             T* data;
             uint32_t count;
             uint32_t capacity;
     };
+
+template<typename T>
+    void ArrayList<T>::popMany(int countIn) {
+        #ifdef VM_SAFE_MODE
+        if (count < countIn) cerr << "ArrayList of count " << count << " can't pop " << countIn << endl;
+        #endif
+        count -= countIn;
+    }
+
+template<typename T>
+    T ArrayList<T>::remove(uint index) {
+        #ifdef VM_SAFE_MODE
+        if (index >= count) cerr << "ArrayList of count " << count << " can't remove index " << index << endl;
+        #endif
+
+        T result = get(index);
+        count--;
+        for (uint i=index;i<count;i++){
+            set(i, get(i + 1));
+        }
+
+        return result;
+    }
 
 template<typename T>
     ArrayList<T>::ArrayList(T* source, uint32_t length) {
@@ -37,7 +62,9 @@ template<typename T>
 template<typename T>
     inline T* ArrayList<T>::peek(uint32_t indexFromFront) {
         #ifdef VM_SAFE_MODE
-        if (indexFromFront > count) cerr << "ArrayList of count " << count << " can't peek index " << indexFromFront  << endl;
+        if (indexFromFront > count) {
+            cerr << "ArrayList of count " << count << " can't peek index " << indexFromFront  << endl;
+        }
         #endif
 
         return data + indexFromFront;

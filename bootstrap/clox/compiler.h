@@ -35,6 +35,13 @@ typedef struct {
     int assignments;
 } Local;
 
+typedef struct {
+    int continueTargetPosition;
+    int startingScopeDepth;
+    ArrayList<int> breakStatementPositions;
+    ArrayList<int> continueStatementPositions;
+} LoopContext;
+
 class Compiler {
 public:
     Compiler();
@@ -58,6 +65,8 @@ private:
     #endif
     ArrayList<Local> locals;
     int scopeDepth;
+    ArrayList<ArrayList<byte>*> buffers;
+    ArrayList<LoopContext*> loopStack;
 
     void expression();
     void errorAt(Token& token, const char* message);
@@ -69,9 +78,17 @@ private:
     void advance();
     void emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument);
     void number();
+    void ifStatement();
+    int emitJump(OpCode op);
+    void patchJump(int fromLocation);
+    void whileStatement();
+    void forStatement();
+    void breakOrContinueStatement(TokenType type);
 
     void grouping();
     void sequenceSliceExpression();
+    void setBreakTargetAndPopActiveLoop();
+    void setContinueTarget();
 
     void parsePrecedence(Precedence precedence);
 
@@ -83,6 +100,9 @@ private:
     bool match(TokenType token);
     void declaration();
     void statement();
+    void varStatement();
+    void expressionStatement();
+    void checkNotInBuffers(ArrayList<byte>* buffer);
 
     bool check(TokenType type);
 
@@ -111,6 +131,21 @@ private:
     void emitPops(int count);
 
     int resolveLocal(Token name);
+
+    int emitJumpIfTrue();
+
+    int emitJumpIfFalse();
+    int getCurrentCodePosition();
+    int emitJumpUnconditionally();
+
+    void patchLoop(int offset);
+    ArrayList<byte>* pushBuffer();
+    void popBuffer();
+    void flushBuffer(ArrayList<byte>*& theBuffer);
+
+    int emitScopePops(int targetDepth);
+
+    void pushActiveLoop();
 };
 
 

@@ -103,7 +103,7 @@ InterpretResult VM::run() {
     #define READ_BYTE() (*(ip++))
     #define READ_CONSTANT() chunk->getConstant(READ_BYTE())
     #define READ_STRING() (AS_STRING(READ_CONSTANT()))
-
+    #define READ_SHORT() (ip += 2, (uint16_t)((ip[-2] << 8) | ip[-1]))
     #ifdef VM_SAFE_MODE
     #define ASSERT_POP(count)                       \
                 if (count > stackHeight()){         \
@@ -305,7 +305,21 @@ InterpretResult VM::run() {
                 stackTop -= count;
                 break;
             }
-
+            case OP_JUMP_IF_FALSE: {
+                uint16_t distance = READ_SHORT();
+                if (isFalsy(peek(0))) ip += distance;
+                break;
+            }
+            case OP_JUMP: {
+                uint16_t distance = READ_SHORT();
+                ip += distance;
+                break;
+            }
+            case OP_LOOP: {
+                uint16_t distance = READ_SHORT();
+                ip -= distance;
+                break;
+            }
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
@@ -338,6 +352,7 @@ InterpretResult VM::run() {
     #undef READ_STRING
     #undef ASSERT_SEQUENCE
     #undef ASSERT_POP
+    #undef READ_SHORT
 }
 
 void VM::runtimeError(const string& message){

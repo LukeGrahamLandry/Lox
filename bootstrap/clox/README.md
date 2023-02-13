@@ -55,7 +55,29 @@ but adds some overhead to creating a string (like by concatenation) because you 
 
 ## Executing Bytecode
 
-- It's just a massive switch statement. 
+- It's just a massive switch statement.
+
+### Control Flow
+
+```
+if (condition){
+    then block;
+} else {
+    else block; 
+}
+```
+
+- condition
+- If false, jump to A
+- pop
+- then block
+- jump to B
+- A
+- pop
+- else block
+- B
+
+Even without an else block, you still have the jump over to B, to skip the extra pop that has to fire if you jumped to A. 
 
 ## Plan
 

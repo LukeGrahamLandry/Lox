@@ -21,8 +21,8 @@ Chunk::Chunk(const Chunk& other){
 }
 
 
-void Chunk::write(byte byte, int line){
-    code->push(byte);
+void Chunk::write(byte b, int line){
+    code->push(b);
 
     if (!lines->isEmpty()){
         int prevLine = lines->get(lines->count - 1);
@@ -121,6 +121,10 @@ Value Chunk::getConstant(int index) {
     return constants->get(index);
 }
 
+
+void Chunk::setCodeAt(int index, byte value){
+    code->set(index, value);
+}
 
 // length as uint32
 // OP_LOAD_INLINE_CONSTANT
