@@ -1,5 +1,5 @@
 #include "vm.h"
-#include "compiler.h"
+#include "compiler/compiler.h"
 #include "common.h"
 #include <cmath>
 

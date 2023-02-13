@@ -1,14 +1,14 @@
 #ifndef clox_compiler_h
 #define clox_compiler_h
 
-#include "chunk.h"
-#include "scanner.h"
-#include "common.h"
-#include "object.h"
-#include "table.h"
+#include "../chunk.h"
+#include "../scanner.h"
+#include "../common.h"
+#include "../object.h"
+#include "../table.h"
 
 #ifdef COMPILER_DEBUG_PRINT_CODE
-#include "debug.h"
+#include "../debug.h"
 #endif
 
 // Order matters! Enums are just numbers.
@@ -135,7 +135,7 @@ private:
     int emitJumpIfTrue();
 
     int emitJumpIfFalse();
-    int getCurrentCodePosition();
+    int getJumpTarget();
     int emitJumpUnconditionally();
 
     void patchLoop(int offset);
@@ -146,6 +146,8 @@ private:
     int emitScopePops(int targetDepth);
 
     void pushActiveLoop();
+
+    void writeShort(int offset, uint16_t v);
 };
 
 

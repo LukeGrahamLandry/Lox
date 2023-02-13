@@ -4,7 +4,7 @@
 #include "chunk.h"
 #include "debug.h"
 #include "value.h"
-#include "compiler.h"
+#include "compiler/compiler.h"
 #include "table.h"
 #include <chrono>
 #include "common.h"
