@@ -9,26 +9,25 @@ void bytecode(VM *vm, const char *path);
 void repl(VM *vm);
 
 int main(int argc, const char* argv[]) {
-    VM* vm = new VM();
+    VM vm;
 
     if (argc == 1){
-        repl(vm);
+        repl(&vm);
     } else if (argc == 2){
-        script(vm, argv[1]);
+        script(&vm, argv[1]);
     } else if (argc == 3 && strcmp(argv[1], "-b") == 0){
-        bytecode(vm, argv[2]);
+        bytecode(&vm, argv[2]);
     } else if (argc == 3 && strcmp(argv[1], "-s") == 0){
         Debugger::silent = true;
-        script(vm, argv[2]);
+        script(&vm, argv[2]);
     }
 
-    delete vm;
     return 0;
 }
 
 void bytecode(VM *vm, const char *path) {
     Chunk* chunk = Chunk::importFromBinary(path);
-    vm->setChunk(chunk);
+    // vm->setChunk(chunk);
     vm->run();
 }
 
@@ -39,14 +38,7 @@ void script(VM *vm, const char *path) {
     if (vm->loadFromSource(src)){
         for (;;){
             result = vm->run();
-            if (result == INTERPRET_DEBUG_BREAK_POINT) {
-                long offset = vm->ip - vm->getChunk()->getCodePtr();
-                Chunk* original = new Chunk(*vm->getChunk());  // copy
-                repl(vm);
-                vm->setChunk(original);  // ownership of <original>'s memory is given back to the vm
-                vm->ip = original->getCodePtr() + offset;
-            }
-            else break;
+            break;
         }
     }
 

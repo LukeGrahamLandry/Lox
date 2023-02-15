@@ -17,7 +17,15 @@ typedef enum {
     INTERPRET_DEBUG_BREAK_POINT
 } InterpretResult;
 
-#define STACK_MAX 256
+typedef struct {
+    ObjFunction* function;
+    uint8_t* ip;
+    Value* slots;
+} CallFrame;
+
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * 256)
+
 
 class VM {
 public:
@@ -26,14 +34,9 @@ public:
 
     byte* ip;
 
-    InterpretResult interpret(Chunk* chunk);
+    InterpretResult interpret(char* src);
     bool loadFromSource(char *src);
-    void setChunk(Chunk *chunk);
     void printDebugInfo();
-
-    Chunk* getChunk(){
-        return chunk;
-    }
 
     InterpretResult run();
 
@@ -50,15 +53,17 @@ public:
 
     static void printTimeByInstruction();
 
+    Set strings;
+    Obj* objects;
 private:
-    Chunk* tempSavedChunk;
     Compiler compiler;
-    Chunk* chunk;
     Value stack[STACK_MAX];  // working memory. my equivalent of registers
     Value* stackTop;  // where the next value will be inserted
+    CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack
+    int frameCount;
 
-    Obj* objects;  // a linked list of all Values with heap allocated memory, so we can free them when we terminate.
-    Set strings;   // interned strings. prevents allocating separate memory for duplicated identical strings.
+    // a linked list of all Values with heap allocated memory, so we can free them when we terminate.
+    // interned strings. prevents allocating separate memory for duplicated identical strings.
     Table globals;
     Debugger debug;
 
@@ -78,7 +83,7 @@ private:
     }
 
     void runtimeError(const string &message);
-    void runtimeError();
+    void printStackTrace(ostream* output);
 
     static bool isFalsy(Value value);
 
@@ -94,6 +99,14 @@ private:
     bool accessSequenceSlice(Value array, int startIndex, int endIndex, Value *result);
 
     double getSequenceLength(Value array);
+
+    inline Chunk* currentChunk(){
+        return frames[frameCount - 1].function->chunk;
+    }
+
+    bool callValue(Value value, int count);
+
+    bool call(ObjFunction *function, int argCount);
 };
 
 

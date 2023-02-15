@@ -114,7 +114,7 @@ void Compiler::forStatement() {
 
 void Compiler::pushActiveLoop(){
     LoopContext* ctx = new LoopContext;
-    ctx->startingScopeDepth = scopeDepth;
+    ctx->startingScopeDepth = scopeDepth();
     ctx->continueTargetPosition = 0;
     loopStack.push(ctx);
 }
@@ -122,7 +122,7 @@ void Compiler::pushActiveLoop(){
 // Call at the location 'continue' should return to.
 // Must be called after getJumpTarget.
 void Compiler::setContinueTarget(){
-    (*loopStack.peekLast())->continueTargetPosition = chunk->getCodeSize();
+    (*loopStack.peekLast())->continueTargetPosition = currentChunk()->getCodeSize();
 }
 
 // Call at the location 'break' should skip to.
@@ -144,7 +144,7 @@ void Compiler::setBreakTargetAndPopActiveLoop(){
         if (jumpDistance > UINT16_MAX) {
             errorAt(current, "Too much code to jump over.");  // TODO: long jump
         }
-        chunk->setCodeAt(fromLocation - 1, jumpType);
+        currentChunk()->setCodeAt(fromLocation - 1, jumpType);
         writeShort(fromLocation, jumpDistance);
     }
     delete ctx;
@@ -184,7 +184,7 @@ int Compiler::emitJumpUnconditionally() {
 
 // TODO: detect if jumping over buffer boundary and throw error. jumping within is fine cause its a delta
 int Compiler::getJumpTarget(){
-    return chunk->getCodeSize();
+    return currentChunk()->getCodeSize();
 }
 
 void Compiler::patchLoop(int loopStart) {

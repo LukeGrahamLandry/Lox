@@ -26,10 +26,10 @@ void Compiler::synchronize() {
 }
 
 void Compiler::emitByte(byte b){
-    if (buffers.count == 0){
+    if (bufferStack.count == 0){
         currentChunk()->write(b, current.line);
     } else {
-        (*buffers.peekLast())->push(b);
+        (*bufferStack.peekLast())->push(b);
     }
 }
 
@@ -82,19 +82,15 @@ void Compiler::errorAt(Token& token, const char *message){
 }
 
 Chunk* Compiler::currentChunk(){
-    return chunk;
-}
-
-void Compiler::setChunk(Chunk* chunkIn) {
-    chunk = chunkIn;
+    return functionStack.peekLast()->function->chunk;
 }
 
 void Compiler::writeShort(int offset, uint16_t v){
     byte a = (v >> 8) & 0xff;
     byte b = v & 0xff;
     if (offset != -1){
-        chunk->setCodeAt(offset, a);
-        chunk->setCodeAt(offset + 1, b);
+        currentChunk()->setCodeAt(offset, a);
+        currentChunk()->setCodeAt(offset + 1, b);
     } else {
         emitBytes(a, b);
     }
@@ -102,12 +98,12 @@ void Compiler::writeShort(int offset, uint16_t v){
 
 ArrayList<byte>* Compiler::pushBuffer(){
     ArrayList<byte>* buffer = new ArrayList<byte>();
-    buffers.push(buffer);
+    bufferStack.push(buffer);
     return buffer;
 }
 
 void Compiler::popBuffer(){
-    buffers.pop();
+    bufferStack.pop();
 }
 
 void Compiler::flushBuffer(ArrayList<byte>*& buffer){
@@ -122,29 +118,29 @@ void Compiler::flushBuffer(ArrayList<byte>*& buffer){
 }
 
 void Compiler::checkNotInBuffers(ArrayList<byte>* buffer){
-    if (buffers.isEmpty()) return;
+    if (bufferStack.isEmpty()) return;
     if (buffer == nullptr){
         cerr << "Must not call flushBuffer twice." << endl;
         return;
     }
 
-    uint i=buffers.count-1;
+    uint i= bufferStack.count - 1;
     do {
-        if (buffers.get(i) == buffer){
+        if (bufferStack.get(i) == buffer){
             cerr << "Compiler must call popBuffer before flushBuffer" << endl;
-            if (i == buffers.count - 1) {
+            if (i == bufferStack.count - 1) {
                 // If you find yourself thinking that flushBuffer should just call popBuffer automatically,
                 // so you can push then immediately pop, that's just normal emitting.
                 // The buffer exists, so you can compile and save to emit later after compiling & emitting other stuff.
                 // Its only meaningful if you compile more after popBuffer before flushBuffer.
 
                 // This avoids an infinite loop of the buffer writing it itself.
-                buffers.remove(i);
+                bufferStack.remove(i);
             } else {
                 // This will only happen if I make a mistake and a function pushes more than it pops.
                 // So an inner function pushes and leaks something to the caller
                 // who expected to be popping the one they pushed, but it wasn't on the top anymore.
-                cerr << "Compiler buffers must be treated as a stack" << endl;
+                cerr << "Compiler bufferStack must be treated as a stack" << endl;
             }
         }
         i--;

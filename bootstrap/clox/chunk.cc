@@ -2,7 +2,7 @@
 
 Chunk::Chunk(){
     code = new ArrayList<byte>();
-    constants = new ValueArray();
+    constants = new ArrayList<Value>();
     lines = new ArrayList<int>();  // run-length encoded: count, line, count, line
 }
 
@@ -14,9 +14,8 @@ Chunk::~Chunk(){
 
 Chunk::Chunk(const Chunk& other){
     code = new ArrayList<byte>(*other.code);
-    constants = new ValueArray();
-    delete constants->values;
-    constants->values = new ArrayList<Value>(*other.constants->values);
+    delete constants;
+    constants = new ArrayList<Value>(*other.constants);
     lines = new ArrayList<int>(*other.lines);
 }
 
@@ -89,7 +88,7 @@ const_index_t Chunk::addConstant(Value value){
 }
 
 void Chunk::rawAddConstant(Value value){
-    constants->add(value);
+    constants->push(value);
 }
 
 int Chunk::getCodeSize() {
@@ -114,7 +113,7 @@ int Chunk::popInstruction() {
 }
 
 void Chunk::printConstantsArray() {
-    printValueArray(constants->values->data, constants->values->data + constants->size());
+    printValueArray(constants->data, constants->data + constants->size());
 }
 
 Value Chunk::getConstant(int index) {
@@ -126,6 +125,13 @@ void Chunk::setCodeAt(int index, byte value){
     code->set(index, value);
 }
 
+// When done compiling the function, the chunk is effectively immutable, so we can remove the extra list space.
+void Chunk::setDone(){
+    constants->shrink();
+    code->shrink();
+    lines->shrink();
+}
+
 // length as uint32
 // OP_LOAD_INLINE_CONSTANT
 // - 0
@@ -133,10 +139,13 @@ void Chunk::setCodeAt(int index, byte value){
 // - 1
 //    length as uint32
 //    string characters
+// - 2
+//    arity
+//    chunk exportAsBinary()
 // the rest of the code
 ArrayList<byte>* Chunk::exportAsBinary(){
-    ArrayList<byte>* output = new ArrayList<byte>();
     uint32_t size = getExportSize();
+    ArrayList<byte>* output = new ArrayList<byte>(size);
     appendAsBytes(output, size);
 
     assert(sizeof(double) == 8);
@@ -155,10 +164,18 @@ ArrayList<byte>* Chunk::exportAsBinary(){
                 switch (type) {
                     case OBJ_STRING: {
                         ObjString* str = AS_STRING(value);
-                        assert(sizeof(str->array.length) == 4);
                         appendAsBytes(output, str->array.length);
-                        output->appendMemory(cast(byte*, str->array.contents), str->array.length);
+                        output->appendMemory(cast(byte *, str->array.contents), str->array.length);
                         break;
+                    }
+                    case OBJ_FUNCTION: {
+                        ObjFunction* func = AS_FUNCTION(value);
+                        assert(sizeof(func->arity) == 1);
+                        output->push(func->arity);
+                        // keep name? should put all the names in a different uniform place.
+                        ArrayList<byte>* inner = func->chunk->exportAsBinary();
+                        output->append(inner);
+                        delete inner;
                     }
                     default:
                         cerr << "Invalid Object Type " << type << endl;
@@ -176,7 +193,7 @@ ArrayList<byte>* Chunk::exportAsBinary(){
     }
 
 
-    output->appendMemory(code->peek(0), code->count);
+    output->append(code);
     return output;
 }
 
@@ -197,6 +214,11 @@ uint32_t Chunk::getExportSize(){
                         ObjString* str = AS_STRING(value);
                         total += sizeof(str->array.length);
                         total += str->array.length;
+                        break;
+                    }
+                    case OBJ_FUNCTION: {
+                        total++; // arity
+                        total += AS_FUNCTION(value)->chunk->getExportSize();
                         break;
                     }
                     default:
@@ -230,7 +252,7 @@ void Chunk::exportAsBinary(const char* path) {
 // The chunk owns the array list now.
 Chunk::Chunk(ArrayList<byte>* exportedBinaryData){
     code = exportedBinaryData;
-    constants = new ValueArray();
+    constants = new ArrayList<Value>();
     lines = new ArrayList<int>();
 }
 
@@ -252,12 +274,12 @@ Chunk* Chunk::importFromBinary(const char *path) {
 // TODO: do i need to worry about other systems having a different byte order?
 void appendAsBytes(ArrayList<byte>* data, uint32_t number){
     assert(sizeof(number) == 4);
-    data->appendMemory(cast(byte*, &number), sizeof(number));
+    data->appendMemory(cast(byte *, &number), sizeof(number));
 }
 
 void appendAsBytes(ArrayList<byte>* data, double number){
     assert(sizeof(number) == 8);
-    data->appendMemory(cast(byte*, &number), sizeof(number));
+    data->appendMemory(cast(byte *, &number), sizeof(number));
 }
 
 

@@ -17,9 +17,10 @@ VM::VM() {
     resetStack();
     objects = nullptr;
     compiler = Compiler();
+    compiler.strings = &strings;
     globals = Table();
     strings = Set();
-    tempSavedChunk = nullptr;
+    frameCount = 0;
 
     out = &cout;
     err = &cerr;
@@ -27,55 +28,30 @@ VM::VM() {
 
 VM::~VM() {
     freeObjects();
-    delete tempSavedChunk;
-}
-
-void VM::setChunk(Chunk* chunkIn){
-    chunk = chunkIn;
-    ip = chunk->getCodePtr();
-    resetStack();
-
-    #ifdef VM_DEBUG_TRACE_EXECUTION
-    debug.setChunk(chunk);
-    #endif
 }
 
 void VM::resetStack(){
     stackTop = stack;
 }
 
-InterpretResult VM::interpret(Chunk* chunk) {
-    setChunk(chunk);
+InterpretResult VM::interpret(char* src) {
+    if (!loadFromSource(src)) return INTERPRET_COMPILE_ERROR;
     return run();
 }
 
 bool VM::loadFromSource(char* src) {
-    if (tempSavedChunk != nullptr) {
-        delete tempSavedChunk;
-        chunk = nullptr;
-        tempSavedChunk = nullptr;
+    ObjFunction* function = compiler.compile(src);
+    if (function == nullptr) return false;
+    if (compiler.objects != nullptr){
+        linkObjects(&objects, compiler.objects);
+        compiler.objects = nullptr;
     }
 
-    tempSavedChunk = new Chunk();
+    push(OBJ_VAL(function));
 
-    compiler.strings = &strings;
-    compiler.setChunk(tempSavedChunk);
-    if (compiler.compile(src)){
-        setChunk(tempSavedChunk);  // set the instruction pointer to the start of the newly compiled array
-
-        if (compiler.objects != nullptr){
-            linkObjects(&objects, compiler.objects);
-            compiler.objects = nullptr;
-        }
-        // strings.safeAddAll(compiler.strings);
-        // compiler.strings.removeAll();
-
-        return true;
-    } else {
-        delete tempSavedChunk;
-        tempSavedChunk = nullptr;
-        return false;
-    }
+    // this doesn't actually run it, just sets it as the current frame on the call stack
+    call(function, 0);
+    return true;
 }
 
 inline void VM::push(Value value){
@@ -100,19 +76,34 @@ inline int VM::stackHeight(){
 }
 
 InterpretResult VM::run() {
+    CallFrame frame;
+    Chunk* chunk;
+
+    #define CACHE_FRAME()                             \
+            frame = frames[frameCount - 1];           \
+            chunk = frame.function->chunk;            \
+            ip = frame.ip;                            \
+
     #define READ_BYTE() (*(ip++))
     #define READ_CONSTANT() chunk->getConstant(READ_BYTE())
     #define READ_STRING() (AS_STRING(READ_CONSTANT()))
     #define READ_SHORT() (ip += 2, (uint16_t)((ip[-2] << 8) | ip[-1]))
+    #define STACK_BASE() (frame.slots)
+
     #ifdef VM_SAFE_MODE
-    #define ASSERT_POP(count)                       \
-                if (count > stackHeight()){         \
-                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack of size %d.", count, stackHeight()) \
-                    return INTERPRET_RUNTIME_ERROR; \
+    // enough stack entries for: for (int i=0;i<count;i++)(pop());
+    #define ASSERT_POP(count)                                \
+                if (count > (int) (stackTop - STACK_BASE())){ \
+                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack frame of size %d.", count, (int) (stackTop - frame.slots)) \
+                    return INTERPRET_RUNTIME_ERROR;          \
                 }
+    // enough stack entries for: frame.slots[offset]
+    #define ASSERT_PEEK(offset) ASSERT_POP(offset + 1)
     #else
     #define ASSERT_POP(count)
+    #define ASSERT_PEEK(offset)
     #endif
+
 
     #define ASSERT_NUMBER(value, message)                   \
             if (!IS_NUMBER(value)){                         \
@@ -137,10 +128,12 @@ InterpretResult VM::run() {
                  break;                          \
             }
 
+    CACHE_FRAME()
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
         if (!Debugger::silent) printValueArray(stack, stackTop);
-        int instructionOffset = (int) (ip - chunk->getCodePtr());
+        int instructionOffset = (int) (ip - frame.function->chunk->getCodePtr());
+        debug.setChunk(chunk);
         debug.debugInstruction(instructionOffset);
         #endif
 
@@ -173,55 +166,17 @@ InterpretResult VM::run() {
                 break;
             case OP_GET_LOCAL: {
                 char offset = READ_BYTE();
-                if (offset >= stackHeight()) {
-                    FORMAT_RUNTIME_ERROR("Cannot get index %d of size %d. The bytecode must be invalid.", offset, stackHeight());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                push(stack[offset]);
+                ASSERT_PEEK(offset)
+                push(STACK_BASE()[offset]);
                 break;
             }
             case OP_SET_LOCAL: {
                 char offset = READ_BYTE();
-                if (offset >= stackHeight()) {
-                    FORMAT_RUNTIME_ERROR("Cannot set index %d of size %d. The bytecode must be invalid.", offset, stackHeight());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                stack[offset] = peek(0);
-                break;
-            }
-            case OP_DEFINE_GLOBAL: {
-                ASSERT_POP(1)
-                // TODO: This doesn't check for redefining, but I'll do that as a compiler pass.
-                ObjString* name = READ_STRING();
-                globals.set(name, peek(0));
-                pop();  // don't pop before table set so garbage collector can find if runs during that resize.
-                break;
-            }
-            case OP_SET_GLOBAL: {
-                ASSERT_POP(1)
-                ObjString* name = READ_STRING();
-                if (globals.set(name, peek(0))){
-                    globals.remove(name);
-                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", asCString(name));
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-
-                // Since an assignment is an expression, it shouldn't modify the stack, so they can chain.
+                ASSERT_PEEK(offset)
+                STACK_BASE()[offset] = peek(0);
+                // Since an assignment is an expression, it shouldn't pop the stack, so they can chain.
                 // If it was used as a statement, a separate OP_POP will be added automatically.
                 // To avoid a special case we want to make sure that every valid expression adds exactly one thing to the stack.
-                // pop();
-                break;
-            }
-            case OP_GET_GLOBAL: {
-                ObjString* name = READ_STRING();
-                Value value = NIL_VAL();
-                bool found = globals.get(name, &value);
-                if (found){
-                    push(value);
-                } else {
-                    FORMAT_RUNTIME_ERROR("Undefined variable '%s'.", asCString(name));
-                    return INTERPRET_RUNTIME_ERROR;
-                }
                 break;
             }
             case OP_ACCESS_INDEX: {
@@ -278,8 +233,21 @@ InterpretResult VM::run() {
                 printValue(pop(), out);
                 *out << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
                 break;
-            case OP_RETURN:
-                return INTERPRET_OK;
+            case OP_RETURN: {
+                frameCount--;
+                if (frameCount == 0) {
+                    stackTop = stack;
+                    printValueArray(stack, stackTop);
+                    return INTERPRET_OK;
+                }
+
+                ASSERT_POP(1)
+                Value value = pop();  // get the return value
+                stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function locals.
+                CACHE_FRAME()  // point the ip back to the caller's code
+                push(value);  // put the return value back on the stack
+                break;
+            }
             case OP_NIL:
                 push(NIL_VAL());
                 break;
@@ -320,21 +288,30 @@ InterpretResult VM::run() {
                 ip -= distance;
                 break;
             }
+            case OP_CALL: {
+                int argCount = READ_BYTE();
+                ASSERT_POP(argCount + 1)
+                if (!callValue(peek(argCount), argCount)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                CACHE_FRAME()
+                break;
+            }
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
             case OP_LOAD_INLINE_CONSTANT:
                 loadInlineConstant();
                 break;
-            #ifdef VM_ALLOW_DEBUG_BREAK_POINT
             case OP_DEBUG_BREAK_POINT:
-                return INTERPRET_DEBUG_BREAK_POINT;
-            #endif
+                printDebugInfo();
+                break;
 
             #ifdef VM_SAFE_MODE
-            default:
-                FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - chunk->getCodePtr() - 1, chunk->getCodeSize());
+            default: {
+                FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - currentChunk()->getCodePtr() - 1, currentChunk()->getCodeSize());
                 return INTERPRET_RUNTIME_ERROR;
+            }
             #endif
         }
 
@@ -357,13 +334,22 @@ InterpretResult VM::run() {
 
 void VM::runtimeError(const string& message){
     *err << message << endl;
-    runtimeError();
+    printStackTrace(err);
 }
 
-void VM::runtimeError(){
-    int instructionOffset = (int) (ip - chunk->getCodePtr() - 1);
-    int line = chunk->getLineNumber(instructionOffset);
-    *err << "[line " << line << "] in script" << endl;
+void VM::printStackTrace(ostream* output){
+    for (int i = frameCount - 1; i >= 0; i--) {
+        CallFrame* frame = &frames[i];
+        ObjFunction* function = frame->function;
+        int instructionOffset = (int) (frame->ip - function->chunk->getCodePtr() - 1);
+        int line = function->chunk->getLineNumber(instructionOffset);
+        *output << "[line " << line << "] in ";
+        if (function->name == nullptr) {
+            *output << "script" << endl;
+        } else {
+            *output << ((char*) function->name->array.contents) << endl;
+        }
+    }
 }
 
 bool VM::isFalsy(Value value){
@@ -394,15 +380,15 @@ void VM::freeObjects(){
 }
 
 void VM::printDebugInfo() {
+    Chunk* chunk = frames[frameCount - 1].function->chunk;
     *out << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
     *out << "Allocated Heap Objects:" << endl;
     printObjectsList(objects);
-    *out << "Global Variables:";
-    globals.printContents();
     *out << "Current Stack:" << endl;
     printValueArray(stack, stackTop - 1);
     *out << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
+    printStackTrace(out);
 }
 
 void VM::loadInlineConstant(){
@@ -414,17 +400,31 @@ void VM::loadInlineConstant(){
             assert(sizeof(value) == 8);
             memcpy(&value, ip, sizeof(value));
             ip += sizeof(value);
-            chunk->rawAddConstant(NUMBER_VAL(value));
+            currentChunk()->rawAddConstant(NUMBER_VAL(value));
             break;
         }
         case (1 + OBJ_STRING): {
-            int length;
+            uint32_t length;
             assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
             ObjString* str = copyString(&strings, &objects, (char*) ip, length-1);
-            chunk->rawAddConstant(OBJ_VAL(str));
+            currentChunk()->rawAddConstant(OBJ_VAL(str));
             ip += length;
+            break;
+        }
+        case (1 + OBJ_FUNCTION): {
+            ObjFunction* func = newFunction();
+            func->arity = *ip;
+            ip++;
+            uint32_t length;
+            assert(sizeof(length) == 4);
+            memcpy(&length, ip, sizeof(length));
+            ip += sizeof(length);
+            func->chunk->code->appendMemory(ip, length);
+            // TODO: pre-load the chunk constants. currently calling it a second time will double all the constants, etc
+            ip += length;
+            currentChunk()->rawAddConstant(OBJ_VAL(func));
             break;
         }
         default:
@@ -506,5 +506,39 @@ void VM::printTimeByInstruction(){
         }
     #endif
 }
+
+bool VM::callValue(Value value, int argCount) {
+    switch (value.type) {
+        case VAL_OBJ:
+            switch (AS_OBJ(value)->type) {
+                case OBJ_FUNCTION:
+                    return call(AS_FUNCTION(value), argCount);
+            }
+            break;
+    }
+    runtimeError("Can only call functions and classes.");
+    return false;
+}
+
+// remember to always use CACHE_FRAME() in the run loop.
+bool VM::call(ObjFunction* function, int argCount){
+    if (frameCount == FRAMES_MAX){
+        FORMAT_RUNTIME_ERROR("Frame stack overflow. Cannot recurse more than %d levels.", FRAMES_MAX);
+        return false;
+    }
+
+    if (argCount != function->arity) {
+        FORMAT_RUNTIME_ERROR("Expected %d arguments but got %d.", function->arity, argCount);
+        return false;
+    }
+
+    if (frameCount > 0) frames[frameCount - 1].ip = ip;
+    frames[frameCount].function = function;
+    frames[frameCount].ip = function->chunk->getCodePtr();
+    frames[frameCount].slots = stackTop - argCount - 1;
+    frameCount++;
+    return true;
+}
+
 
 #undef FORMAT_RUNTIME_ERROR

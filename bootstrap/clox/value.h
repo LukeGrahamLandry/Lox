@@ -5,24 +5,30 @@
 #include "list.cc"
 #include "object.h"
 
+
 typedef enum {
     VAL_BOOL,
     VAL_NIL,
     VAL_NUMBER,
-    VAL_OBJ
+    VAL_OBJ,
 } ValueType;
 
 typedef struct Obj Obj;
 typedef struct Value Value;
 
+union ValueData {
+    bool boolean;
+    double number;
+    int integer;
+    Obj* obj;
+    void* ip;
+};
+
 struct Value {
     ValueType type;
-    union {
-        bool boolean;
-        double number;
-        Obj* obj;
-    } as;
+    ValueData as;
 };
+
 
 // c type -> Value
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
@@ -42,16 +48,6 @@ struct Value {
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
-
-class ValueArray {
-    public:
-        ValueArray();
-        ~ValueArray();
-        void add(Value value);
-        Value get(int index);
-        int size();
-        ArrayList<Value>* values;
-};
 
 void printValue(Value value);
 void printValue(Value value, ostream* output);

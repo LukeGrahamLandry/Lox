@@ -1,25 +1,5 @@
 #include "value.h"
 
-ValueArray::ValueArray(){
-    values = new ArrayList<Value>();
-}
-
-ValueArray::~ValueArray(){
-    delete values;
-}
-
-void ValueArray::add(Value value){
-    values->push(value);
-}
-
-Value ValueArray::get(int index){
-    return values->get(index);
-}
-
-int ValueArray::size() {
-    return values->count;
-}
-
 void printValue(Value value, ostream* output){
     switch (value.type) {
         case VAL_BOOL:

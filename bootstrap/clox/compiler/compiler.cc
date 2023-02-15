@@ -4,22 +4,54 @@ Compiler::Compiler(){
     hadError = false;
     panicMode = false;
     objects = nullptr;
-    scopeDepth = 0;
 };
 
 Compiler::~Compiler(){
-    if (buffers.count > 0){
-        cerr << "Compiler had " << buffers.count << " unterminated buffers." << endl;
-        for (int i=0;i<buffers.count;i++){
-            delete buffers.get(i);
+    if (bufferStack.count > 0){
+        cerr << "Compiler had " << bufferStack.count << " unterminated bufferStack." << endl;
+        for (int i=0; i < bufferStack.count; i++){
+            delete bufferStack.get(i);
         }
     }
 };
 
-bool Compiler::compile(char* src){
+void Compiler::pushFunction(FunctionType currentFunctionType){
+    TargetFunction func;
+    func.variableStack = new ArrayList<Local>();
+    func.type = currentFunctionType;
+    func.function = NULL;
+    func.function = newFunction();
+    func.scopeDepth = 0;
+
+    linkObjects(&objects, RAW_OBJ(func.function));
+
+    Local local;
+    local.depth = 0;
+    local.name.start = "";
+    local.name.length = 0;
+    local.assignments = 0;
+    local.isFinal = false;
+    func.variableStack->push(local);
+
+    functionStack.push(func);
+}
+
+ObjFunction *Compiler::popFunction() {
+    TargetFunction func = functionStack.pop();
+    delete func.variableStack;
+    return func.function;
+}
+
+// A script is implicitly wrapped in a function.
+// So the compiler can just produce a normal ObjFunction* and all the vm has to do to start is directly call it.
+// This works elegantly since I have no special behaviour in the global scope.
+// I might not even need to track that it's a special TYPE_SCRIPT not just a TYPE_FUNCTION.
+// But it seems silly to throw away the information this early.
+ObjFunction* Compiler::compile(char* src){
     scanner = new Scanner(src);
     hadError = panicMode = false;
 
+    pushFunction(TYPE_SCRIPT);
     advance();
 
     while (!match(TOKEN_EOF)){
@@ -31,13 +63,13 @@ bool Compiler::compile(char* src){
     #ifdef COMPILER_DEBUG_PRINT_CODE
     if (!hadError){
         debugger.setChunk(currentChunk());
-        debugger.debug("code");
+        debugger.debug("script");
         if (!Debugger::silent) cout << "==========" << endl;
     }
     #endif
 
     delete scanner;
-    return !hadError;
+    return hadError ? nullptr : popFunction();
 }
 
 void Compiler::declaration(){
@@ -47,6 +79,9 @@ void Compiler::declaration(){
             varStatement();
             break;
         }
+        case TOKEN_FUN:
+            funDeclaration();
+            break;
         default:
             statement();
             break;
@@ -65,10 +100,11 @@ void Compiler::varStatement(){
     match(TOKEN_VAR);
 
     parseLocalVariable("Expect variable name.");
-    (*locals.peekLast()).isFinal = isFinal;
+
+    (*locals()->peekLast()).isFinal = isFinal;
     if (match(TOKEN_EQUAL)){
         expression();
-        (*locals.peekLast()).assignments++;
+        (*locals()->peekLast()).assignments++;
     } else {
         emitByte(OP_NIL);
     }
@@ -76,21 +112,30 @@ void Compiler::varStatement(){
     consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 }
 
+void Compiler::funDeclaration(){
+    advance();
+    parseLocalVariable("Expect function name.");
+    defineLocalVariable();
+
+    ObjString* name = copyString(strings, &objects, previous.start, previous.length);
+    functionExpression(TYPE_FUNCTION, name);
+}
+
 void Compiler::beginScope(){
-    scopeDepth++;
+    functionStack.peekLast()->scopeDepth++;
 }
 
 void Compiler::endScope(){
     // Walk back through the stack and pop off everything in this scope
-    int count = emitScopePops(scopeDepth - 1);
-    locals.popMany(count);
-    scopeDepth--;
+    int count = emitScopePops(scopeDepth() - 1);
+    locals()->popMany(count);
+    functionStack.peekLast()->scopeDepth--;
 }
 
 int Compiler::emitScopePops(int targetDepth){
     int localsCount = 0;
-    for (int i=locals.count-1;i>=0;i--){
-        Local check = locals.get(i);
+    for (int i = (int) locals()->count - 1; i >= 0; i--){
+        Local check = locals()->get(i);
         if (check.depth <= targetDepth) {
             break;
         }
@@ -163,6 +208,17 @@ void Compiler::statement(){
             consume(TOKEN_SEMICOLON, "Expect ';' after 'exit'.");
             emitByte(OP_EXIT_VM);
             break;
+        case TOKEN_RETURN: {
+            advance();
+            if (match(TOKEN_SEMICOLON)){
+                emitByte(OP_NIL);
+            } else {
+                expression();
+                consume(TOKEN_SEMICOLON, "Expect ';' after 'return'.");
+            }
+            emitByte(OP_RETURN);
+            break;
+        }
         case TOKEN_BREAK:
         case TOKEN_CONTINUE:
             breakOrContinueStatement(current.type);
@@ -178,16 +234,14 @@ void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkI
     // This makes it faster and saves 3 bytes every timeMS: SET I POP GET I -> SET I.
     // This seems to break the assertion about statements not changing the stack size,
     // but really it's just rewriting "x = 1; print x;" as "print x = 1;"
-    if (chunk->getCodeSize() >= 3){
-        bool justPopped = chunk->getInstruction(-1) == OP_POP;
-        bool wasSame = chunk->getInstruction(-2) == argument;
-        bool justSetLocal = chunk->getInstruction(-3) == checkInstruction || chunk->getInstruction(-3) == emitInstruction;
+    if (currentChunk()->getCodeSize() >= 3){
+        bool justPopped = currentChunk()->getInstruction(-1) == OP_POP;
+        bool wasSame = currentChunk()->getInstruction(-2) == argument;
+        bool justSetLocal = currentChunk()->getInstruction(-3) == checkInstruction || currentChunk()->getInstruction(-3) == emitInstruction;
         if (justPopped && wasSame && justSetLocal){
-            chunk->popInstruction();  // remove the pop
+            currentChunk()->popInstruction();  // remove the pop
             return;
         }
     }
     emitBytes(emitInstruction, argument);
 }
-
-

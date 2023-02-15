@@ -78,6 +78,13 @@ void Compiler::parsePrecedence(Precedence precedence){
         case TOKEN_IDENTIFIER:
             namedVariable(previous, canAssign);
             break;
+        case TOKEN_FUN: {
+            if (check(TOKEN_IDENTIFIER)) break;
+            std::string n = "lambda:" + to_string(previous.line);
+            ObjString* name = copyString(strings, &objects, n.c_str(), (int) n.length());
+            functionExpression(TYPE_FUNCTION, name);
+            break;
+        }
         default:
             errorAt(previous, "Expect expression.");
             break;
@@ -137,13 +144,31 @@ void Compiler::parsePrecedence(Precedence precedence){
                 patchJump(jumpOverRight);
                 break;
             }
+            case TOKEN_QUESTION: {
+                if (precedence > PREC_TERNARY) return;
+                advance();
 
-                // TODO: `condition ? then : else`
-                //     ? is binary and : is unary
-                //     bytes: THEN ELSE EXPR OP_CONDITIONAL
-                //     case OP_CONDITIONAL:
-                //          bool expr = pop();
-                //          if (expr) {pop()} else {Value v = pop(); pop(); push(v)}
+                int jumpOverThen = emitJumpIfFalse();
+                emitByte(OP_POP);  // condition
+                expression();  // if true
+                consume(TOKEN_COLON, "Expect ':' after '?' expression.");
+
+                int jumpOverElse = emitJumpUnconditionally();
+
+                patchJump(jumpOverThen);
+                emitByte(OP_POP);  // condition
+                expression();  // if false
+
+                patchJump(jumpOverElse);
+                return;
+            }
+            case TOKEN_LEFT_PAREN: {  // function call
+                if (precedence > PREC_CALL) return;
+                advance();
+                int args = argumentList();
+                emitBytes(OP_CALL, args);
+                break;
+            }
             default:
                 return;
         }
@@ -191,24 +216,25 @@ void Compiler::emitConstantAccess(Value value){
     if (IS_BOOL(value)) AS_BOOL(value) ? emitByte(OP_TRUE) : emitByte(OP_FALSE);
     else if (IS_NIL(value)) emitByte(OP_NIL);
     else {
-        const_index_t location = chunk->addConstant(value);
+        const_index_t location = currentChunk()->addConstant(value);
         emitBytes(OP_GET_CONSTANT, location);
     }
 }
 
-void Compiler::parseLocalVariable(const char* errorMessage) {
+int Compiler::parseLocalVariable(const char* errorMessage) {
     consume(TOKEN_IDENTIFIER, errorMessage);
-    declareLocalVariable();
+
 
     // TODO: keep the name when in debug mode
     // identifierConstant(previous);
+    return declareLocalVariable();
 }
 
 // for preventing self reference in a definition
-void Compiler::declareLocalVariable(){
-    if (locals.count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
+int Compiler::declareLocalVariable(){
+    if (locals()->count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
         errorAt(previous, "Too many local variables in function.");
-        return;
+        return -1;
     }
 
     Local local;
@@ -217,27 +243,29 @@ void Compiler::declareLocalVariable(){
     local.assignments = 0;
     local.isFinal = false;
 
-    for (int i=locals.count-1;i>=0;i--){
-        Local check = locals.get(i);
-        // since <locals> is a stack, the first timeMS you see something of a higher scope, everything will be
-        if (check.depth != -1 && check.depth < scopeDepth) break;
+    for (int i= (int) locals()->count - 1; i >= 0; i--){
+        Local check = locals()->get(i);
+        // since <variableStack> is a stack, the first timeMS you see something of a higher scope, everything will be
+        if (check.depth != -1 && check.depth < scopeDepth()) break;
         if (identifiersEqual(check.name, local.name)) {
             errorAt(previous, "Already a variable with this name in this scope.");
         }
     }
 
-    locals.push(local);
+    locals()->push(local);
+
+    return (int) locals()->count - 1;
 }
 
 void Compiler::defineLocalVariable(){
     // Mark initialized
-    (*locals.peekLast()).depth = scopeDepth;
+    (*locals()->peekLast()).depth = scopeDepth();
     // NO-OP at runtime, it just flows over and the stack slot becomes a local
 }
 
 int Compiler::resolveLocal(Token name){
-    for (int i=locals.count-1;i>=0;i--){
-        Local check = locals.get(i);
+    for (int i= (int) locals()->count - 1; i >= 0; i--){
+        Local check = locals()->get(i);
         if (identifiersEqual(check.name, name)) {
             if (check.depth == -1) {
                 errorAt(previous, "Can't read local variable in its own initializer.");
@@ -256,11 +284,11 @@ bool Compiler::identifiersEqual(Token a, Token b) {
 // returns an index into the constants array for the identifier name as a string
 const_index_t Compiler::identifierConstant(Token name) {
     Value varName = createStringValue(name.start, name.length);
-    return chunk->addConstant(varName);
+    return currentChunk()->addConstant(varName);
 }
 
 void Compiler::namedVariable(Token name, bool canAssign) {
-    // TODO: need another opcode if i grow the stack and allow >256 locals
+    // TODO: need another opcode if i grow the stack and allow >256 variableStack
     int local = resolveLocal(name);
 
     if (local == -1){
@@ -271,7 +299,7 @@ void Compiler::namedVariable(Token name, bool canAssign) {
     // If the variable is inside a high precedence expression, it has to be a get not a set.
     // Like a * b = c should be a syntax error not parse as a * (b = c).
     if (canAssign && match(TOKEN_EQUAL)){
-        Local* variable = locals.peek(local);
+        Local* variable = locals()->peek(local);
         if (variable->assignments++ != 0 && variable->isFinal) {
             errorAt(previous, "Cannot assign to final variable.");
             return;
@@ -281,4 +309,54 @@ void Compiler::namedVariable(Token name, bool canAssign) {
     } else {
         emitGetAndCheckRedundantPop(OP_GET_LOCAL, OP_SET_LOCAL, local);
     }
+}
+
+void Compiler::functionExpression(FunctionType funcType, ObjString* name){
+    pushFunction(funcType);
+    ObjFunction* func = functionStack.peekLast()->function;
+    func->name = name;
+    
+    beginScope();
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+
+    if (!check(TOKEN_RIGHT_PAREN)){
+        do {
+            func->arity++;
+            if (func->arity > 255) {
+                errorAt(current, "Can't have more than 255 parameters.");
+            }
+            parseLocalVariable("Expect parameter name.");
+            defineLocalVariable();
+        } while (match(TOKEN_COMMA));
+    }
+
+    // TODO
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+
+    statement();  // not block(). allow one-liner functions like: fun add(a, b) return a + b;
+
+    // scope not closed. return implicitly pops everything
+    emitBytes(OP_NIL, OP_RETURN);
+
+    debugger.setChunk(currentChunk());
+    debugger.debug((char*) func->name->array.contents);
+
+    popFunction();
+    emitConstantAccess(OBJ_VAL(func));
+}
+
+int Compiler::argumentList(){
+    int args = 0;
+    if (!check(TOKEN_RIGHT_PAREN)){
+        do {
+            expression();
+            args++;
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    if (args == 255) {
+        errorAt(previous, "Can't have more than 255 arguments.");
+    }
+
+    return args;
 }

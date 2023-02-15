@@ -6,12 +6,12 @@
 #include "vm.h"
 #include "common.h"
 
-#define ALLOCATE_OBJ(type, objectType) \
-        (type*)allocateObject(sizeof(type), objectType)
-
 bool isObjType(Value value, ObjType type){
     return value.type == VAL_OBJ && AS_OBJ(value)->type == type;
 }
+
+#define ALLOCATE_OBJ(type, objectType) \
+        (type*)allocateObject(sizeof(type), objectType)
 
 // The Obj wants to own its memory, so it can garbage collect if it wants.
 // So if you're looking at someone else's string, like the src from the scanner, you need to copy it.
@@ -88,6 +88,12 @@ void freeObject(Obj* object){
             FREE(ObjString, object);
             break;
         }
+        case OBJ_FUNCTION: {
+            ObjFunction* function = (ObjFunction*)object;
+            delete function->chunk;
+            FREE(ObjFunction , object);
+            break;
+        }
     }
 }
 
@@ -105,6 +111,11 @@ void printObject(Value value, ostream* output){
         case OBJ_STRING:
             *output << AS_CSTRING(value);
             break;
+        case OBJ_FUNCTION: {
+            ObjString* name = AS_FUNCTION(value)->name;
+            *output << "<fn " << (name == nullptr ? "script" : (char*) name->array.contents) << ">";
+            break;
+        }
         default:
             *output << "Untagged Obj " << AS_OBJ(value);
     }
@@ -118,6 +129,9 @@ void printObjectOwnedAddresses(Value value){
     switch (OBJ_TYPE(value)) {
         case OBJ_STRING:
             cout << (void*) AS_CSTRING(value);
+            break;
+        case OBJ_FUNCTION:
+            cout << (void*) AS_FUNCTION(value)->chunk;
             break;
     }
 }
@@ -133,4 +147,12 @@ void printObjectsList(Obj* head){
         cout << "]" << endl;
         object = next;
     }
+}
+
+ObjFunction* newFunction() {
+    ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
+    function->arity = 0;
+    function->name = NULL;
+    function->chunk = new Chunk;
+    return function;
 }

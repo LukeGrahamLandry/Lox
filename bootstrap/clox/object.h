@@ -12,19 +12,21 @@
 #define RAW_OBJ(objSubclassInstancePtr) ((Obj*) objSubclassInstancePtr)
 
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
-#define IS_ARRAY(value)       (IS_STRING(value))
+#define IS_BYTE_ARRAY(value)       (isObjType(value, OBJ_BYTE_ARRAY))
+#define IS_VALUE_ARRAY(value)       (isObjType(value, OBJ_VALUE_ARRAY))
+#define IS_ARRAY(value)       (IS_STRING(value) || IS_BYTE_ARRAY(value) IS_VALUE_ARRAY(value))
+#define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
 
+#define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      ((char*) ((ObjString*)AS_OBJ(value))->array.contents)
-#define AS_ARRAY(value)       \
-        (IS_STRING(value) ? \
-        (ObjArray){VAL_OBJ, {.obj = (Obj*)AS_OBJ()}                      \
-        : nullptr)
-
-
+#define AS_ARRAY(value)   ((ObjArray){VAL_OBJ, {.obj = (Obj*)AS_OBJ()})
 
 typedef enum {
     OBJ_STRING,
+    OBJ_VALUE_ARRAY,
+    OBJ_BYTE_ARRAY,
+    OBJ_FUNCTION
 } ObjType;
 
 typedef struct ObjString ObjString;
@@ -46,6 +48,8 @@ struct ObjArray {
 };
 
 // This expects <chars> to be null terminated but <length> does not include the terminator character.
+// TODO: Strings should not be a magic special case. Should expose ObjInternedArray to the language.
+// If you have a typed array, each thing doesn't need a type tag. A Value array can have anything since those have a type tag.
 struct ObjString {
     ObjArray array;
     uint32_t hash;
@@ -53,7 +57,17 @@ struct ObjString {
 
 typedef struct Value Value;
 typedef class Set Set;
+typedef class Chunk Chunk;
 
+typedef struct {
+    Obj obj;
+    // The compiler limits number of arguments to 1 byte.
+    // Even once I allow higher stack indexes for locals, the limitation here doesn't feel unreasonable.
+    // Nobody manually writes a function with 256 arguments and if you're generating one there's probably a better way.
+    uint8_t arity;
+    Chunk* chunk;
+    ObjString* name;
+} ObjFunction;
 
 bool isObjType(Value value, ObjType type);
 ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length);
@@ -66,6 +80,7 @@ void printObjectOwnedAddresses(Value value);
 uint32_t hashString(const char* chars, uint32_t length);
 void printObjectsList(Obj* head);
 void freeObject(Obj* object);
+ObjFunction* newFunction();
 
 inline void freeStringChars(ObjString* string){
     FREE_ARRAY(char, string->array.contents, string->array.length);
@@ -83,5 +98,6 @@ inline void linkObjects(Obj** head, Obj* additional) {
 inline char* asCString(ObjString* str){
     return (char*) str->array.contents;
 }
+
 
 #endif

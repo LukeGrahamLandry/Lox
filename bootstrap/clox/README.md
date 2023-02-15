@@ -6,6 +6,8 @@
 - `exit;`
 - `a ** b` (a to the power of b)
 - Index and slice strings: `s[index]` or `s[start:end]`
+- `break` and `continue`
+- `condition ? a : b`
 
 ## Parsing Source Code
 
@@ -27,8 +29,6 @@ It uses the group of characters referenced in the source code array to create a 
 It puts a Value in the constants array and writes OP_GET_CONSTANT then its index to the bytecode.
 Constants are deduplicated. When the compiler adds a new constant, it loops through all existing ones to check if that value is already there.
 
-
-
 ## Value
 
 The Value type (entries in the constants array) is a tagged union struct. The first field is an enum saying what type it is 
@@ -39,14 +39,13 @@ then the data is in the next field.
 - NUMBER: the data is double
 - OBJ: the data is a pointer to an instance of the Obj struct.
 
-### Obj
-
 An Obj represents a block of dynamically allocated memory on the heap. Each Obj has a type tag 
 and a pointer to the next obj (it's a linked list node) so the vm can clear them all when it's done. 
 
 They also have additional data depending on their type. 
 
-- OBJ_STRING: an array of chars and its length. Since c works on strings as char arrays, it's only a dereference away. 
+- OBJ_STRING: an array of chars and its length. Since c works on strings as char arrays, it's only a pointer dereference away. 
+- OBJ_FUNCTION: a Chunk and its arity. 
 
 All strings are interned. The compiler and the vm share a hash set. Whenever a new StringObj Value is created, 
 it's looked up in the set. If its already there, the old one is used. So every StringObj with identical 
@@ -61,23 +60,43 @@ but adds some overhead to creating a string (like by concatenation) because you 
 
 ```
 if (condition){
-    then block;
+    THEN;
 } else {
-    else block; 
+    ELSE; 
 }
 ```
 
-- condition
-- If false, jump to A
-- pop
-- then block
-- jump to B
-- A
-- pop
-- else block
-- B
+The condition is evaluated, then OP_JUMP_IF_FALSE decides whether to jump over THEN to ELSE. 
+The end of THEN has an OP_JUMP that skips over ELSE. 
+The beginning of both THEN and ELSE have an OP_POP that removes the condition. 
+I could have the pop at the very end where the jump over ELSE lands but that would mean that nested if statements 
+would collect stack values that would only get cleaned up as they started terminating. 
+It feels nicer to not leave mess around if we know it will never be used. 
+But needing to jump over the extra pop even when there's no ELSE feels a bit ugly.
 
-Even without an else block, you still have the jump over to B, to skip the extra pop that has to fire if you jumped to A. 
+### Functions
+
+Each function is a heap allocated obj. 
+
+When we hit an OP_CALL, all the arguments have already been evaluated and are on the stack. 
+The argument to the op has the number of args, so we know how far back to look for the value being called.
+We create a new call frame referencing that function and save the beginning of its view into the stack. 
+There's only one value stack, each call frame just points to a different slot to treat as the beginning. 
+We save the current ip on the previous stack frame and update the vm's ip to point to the beginning of the function's chunk. 
+
+Then execution continues as before with local variable indexes now relative to the new frame's stack pointer. 
+
+When we hit an OP_RETURN, the value being returned is at the top of the stack, so we pop it off. 
+The vm's stack pointer is set to the base of the current function which is the top of the previous one. 
+The call frame is popped as well and the vm's ip is set back to the one saved in the previous frame. 
+Then the return value is pushed back to the new stack top. 
+
+The top level script is also just compiled into a function that runs in the same way. 
+So the first stack slot is always the main script's ObjFunction and the vm terminates when it returns from the last call frame.
+
+Since each ObjFunction has its own Chunk, the constant arrays aren't deduplicated. 
+But maybe it's fine since Values are just pointers and big strings are interned separately anyway. 
+It means chunks could be loaded into memory when they're called the first time which would be good for large programs. 
 
 ## Plan
 
@@ -126,33 +145,6 @@ The VM would just always cast to the type required by the operator so the Value 
 
 ## Optimising Variables
 
-How the book does variables:
-var name = 10; 
-    - index = push to constants "name"
-    - emit: OP_GET_CONSTANT write(10)
-    - emit: OP_DEFINE_GLOBAL index
-Recall: 
-    write(v): put Value(v), with wasted space for type tag, in the chunk's constant array then write byte(index) to the code array.
-    They don't export the opcode and constant data as one stream of bytes. 
-    VM OP_GET_CONSTANT: read the next code byte as an index to get from the constants array and push to the stack.
-Now we push VM OP_DEFINE_GLOBAL: 
-    - name = next byte as index to constant array
-    - in the globals hash table set: name = pop()
-To retrieve, ex: name;
-    - index = push to constants "name"
-    - emit: OP_GET_GLOBAL index
-VM OP_GET_GLOBAL:
-    - name = next byte as index to constant array
-    - value = get name from globals hash table
-    - push(value)
-
-You shouldn't need to keep the actual string value. Each OP_GET_GLOBAL references an index into the constants array to get a hash code 
-and that hash code is looked up in the table. You can't directly index into a globals array because what if the garbage collector makes 
-stuff move around. But since local variables will be handled separately, maybe you never garbage collect the globals 
-because you never know if something later will use them so then global variables can be direct indexes into an array. 
-And local variables are indexes into that function's array which will get popped off the stack at the end. 
-That's just reference counting tho.
-
 Could have type tags for each thing in constants array packed in a separate array of longs, so it could look 
 them up if it really wanted to. There's only 4 options and im afraid of the padding. 
 
@@ -185,23 +177,6 @@ So two opcodes: OP_VM_NATIVE_CALL OP_FFI_NATIVE_CALL
 Can do types from the bytecode by running through it and making a stack where the values are types. 
 When you hit a condition, try both paths. 
 
-
-## Exporting a Chunk
-
-constant array size: How many Values.
-bytecode array size: How many bytes.
-array of Values to be loaded to constants array. 
-array of bytes that have all the data to be put in heap for Objs in constants array. 
-array of bytecode. 
-
-This could all be encoded as bytecode with a couple extra instructions: 
-- GROW_CONSTANTS_ARRAY: faster to have this manually requested with the correct length at the beginning than making it an ArrayList. 
-- LOAD_INLINE_CONSTANT: read the next few bytes as a Value into the constants array. 
-  - If it's an obj, read the size of heap space to allocate then copy that many bytes into that space. 
-
-That could even save the state of a program during execution, and it could start where it left off. 
-Just have a JUMP after data loading that skips to where the ip was before. 
-
 ### Line number tracking
 
 run-length encoding is much better than the original but still feels dumb since the lines are almost always sequential
@@ -214,3 +189,19 @@ It's a lazily loaded value encoded as a pure function that gets cached.
 Every reference is inlined as `(name == nil ? name = computeName() : name)`, but if multiple references in same function, only the first needs the check. 
 `lazy` modifier for a var. have it be context dependent. `lazy var` -> TOKEN_LAZY_VAR, `var` -> TOKEN_VAR, `lazy` -> TOKEN_IDENTIFIER
 
+### Names
+
+No global variables. I don't like the giant hash table in the sky.
+Imports (and implied ones like native functions) take a stack slot.
+Figure out a way of storing names of variables somewhere if it's told to save debug symbols.
+Do that by default because it lets you have good error messages. Special compiler flag to omit names.
+When generating bytecode it should tell you how much space each category takes
+and remind you about the flags to optimise that but warn that it makes error messages and debugging worse.
+Have a way for it to export just the name mapping information, so you can retroactively apply it to a bug report. 
+
+### Bytecode Export
+
+Instead of LOAD_INLINE_CONSTANT that just does one, so you have to repeat it for each. 
+Have LOAD_INLINE_CONSTANT_ARRAY with a short argument for the length. 
+Can grow the array to the correct length so a bit faster since no resize. 
+Then it loops through that many times and loads them in sequence. 

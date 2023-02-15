@@ -55,6 +55,7 @@ Token Scanner::scanToken() {
         SINGLE_TOKEN('[', TOKEN_LEFT_SQUARE_BRACKET)
         SINGLE_TOKEN(']', TOKEN_RIGHT_SQUARE_BRACKET)
         SINGLE_TOKEN(':', TOKEN_COLON)
+        SINGLE_TOKEN('?', TOKEN_QUESTION)
 
         case '"':
             return string();

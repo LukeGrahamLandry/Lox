@@ -43,7 +43,7 @@ typedef enum {
     OP_JUMP,
     OP_LOOP,
     OP_JUMP_IF_FALSE,
-    OP_DYNAMIC_JUMP
+    OP_CALL
 } OpCode;
 
 class Chunk {
@@ -69,12 +69,15 @@ class Chunk {
 
         static Chunk* importFromBinary(const char* path);
         static string opcodeNames[256];
+
+        ArrayList<byte>* code;
 private:
-    ArrayList<byte>* code;
     ArrayList<int>* lines;
-    ValueArray* constants;
+    ArrayList<Value>* constants;
 
     uint32_t getExportSize();
+
+    void setDone();
 };
 
 void appendAsBytes(ArrayList<byte>* data, uint32_t number);

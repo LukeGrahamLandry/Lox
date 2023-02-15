@@ -75,7 +75,7 @@ int Debugger::debugInstruction(int offset){
                 case op:         \
                     return constantInstruction(#op, offset);
 
-    #define NUMBER_ARG(op) \
+    #define BYTE_ARG(op) \
             case op:       \
                 printf("%-16s %4d \n", #op, chunk->getCodePtr()[offset + 1]); \
                 return offset + 2;
@@ -106,10 +106,11 @@ int Debugger::debugInstruction(int offset){
         CONSTANT(OP_GET_GLOBAL)
         CONSTANT(OP_SET_GLOBAL)
         CONSTANT(OP_GET_CONSTANT)
-        NUMBER_ARG(OP_POP_MANY)
-        NUMBER_ARG(OP_GET_LENGTH)
-        NUMBER_ARG(OP_GET_LOCAL)
-        NUMBER_ARG(OP_SET_LOCAL)
+        BYTE_ARG(OP_POP_MANY)
+        BYTE_ARG(OP_CALL)
+        BYTE_ARG(OP_GET_LENGTH)
+        BYTE_ARG(OP_GET_LOCAL)
+        BYTE_ARG(OP_SET_LOCAL)
         case OP_JUMP:
             return jumpInstruction("OP_JUMP", 1, chunk, offset);
         case OP_JUMP_IF_FALSE:
