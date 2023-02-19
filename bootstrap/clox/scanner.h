@@ -21,7 +21,7 @@ typedef enum {
     TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_NIL, TOKEN_OR,
     TOKEN_PRINT, TOKEN_RETURN, TOKEN_SUPER, TOKEN_THIS,
     TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
-    TOKEN_DEBUGGER, TOKEN_EXIT, TOKEN_FINAL, TOKEN_CONTINUE, TOKEN_BREAK,
+    TOKEN_DEBUGGER, TOKEN_EXIT, TOKEN_FINAL, TOKEN_CONTINUE, TOKEN_BREAK, TOKEN_IMPORT,
 
     TOKEN_ERROR, TOKEN_EOF
 } TokenType;
@@ -55,7 +55,8 @@ private:
     Token errorToken(const char *message) const;
     Token makeToken(TokenType type);
     static bool isDigit(char c);
-    static bool isAlpha(char c);bool isAtEnd();
+    static bool isAlpha(char c);
+    bool isAtEnd();
     char advance();
     bool match(char expected);
     char peek();

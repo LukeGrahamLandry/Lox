@@ -94,6 +94,10 @@ void freeObject(Obj* object){
             FREE(ObjFunction , object);
             break;
         }
+        case OBJ_NATIVE: {
+            FREE(ObjNative, object);
+            break;
+        }
     }
 }
 
@@ -114,6 +118,11 @@ void printObject(Value value, ostream* output){
         case OBJ_FUNCTION: {
             ObjString* name = AS_FUNCTION(value)->name;
             *output << "<fn " << (name == nullptr ? "script" : (char*) name->array.contents) << ">";
+            break;
+        }
+        case OBJ_NATIVE: {
+            ObjString* name = AS_NATIVE(value)->name;
+            *output << "<native-fn " << (name == nullptr ? "?" : (char*) name->array.contents) << ">";
             break;
         }
         default:
@@ -155,4 +164,12 @@ ObjFunction* newFunction() {
     function->name = NULL;
     function->chunk = new Chunk;
     return function;
+}
+
+ObjNative *newNative(NativeFn function, uint8_t arity, ObjString* name) {
+    ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+    native->function = function;
+    native->arity = arity;
+    native->name = name;
+    return native;
 }

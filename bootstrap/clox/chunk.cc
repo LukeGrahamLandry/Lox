@@ -307,8 +307,6 @@ string Chunk::opcodeNames[256] = {
         OP(OP_DEFINE_GLOBAL)
         OP(OP_DEBUG_BREAK_POINT)
         OP(OP_EXIT_VM)
-        OP(OP_GET_GLOBAL)
-        OP(OP_SET_GLOBAL)
         OP(OP_ACCESS_INDEX)
         OP(OP_SLICE_INDEX)
         OP(OP_GET_LENGTH)

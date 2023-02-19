@@ -33,6 +33,7 @@ public:
     ~VM();
 
     byte* ip;
+    int exitCode;
 
     InterpretResult interpret(char* src);
     bool loadFromSource(char *src);
@@ -52,8 +53,11 @@ public:
     #endif
 
     static void printTimeByInstruction();
+    ObjString* produceString(const string& str);
+    Value produceFunction(char *src);
 
     Set strings;
+    Table natives;
     Obj* objects;
 private:
     Compiler compiler;
@@ -107,6 +111,7 @@ private:
     bool callValue(Value value, int count);
 
     bool call(ObjFunction *function, int argCount);
+    void defineNative(const string& name, NativeFn function, int arity);
 };
 
 

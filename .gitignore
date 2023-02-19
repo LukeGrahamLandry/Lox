@@ -6,3 +6,6 @@ bootstrap/clox/clox
 **/.idea
 **/*.h.gch
 bootstrap/clox/out/**
+**/.gradle/**/*
+**/build/**/*
+java/lang/src/main/java/com/craftinginterpreters/**/*

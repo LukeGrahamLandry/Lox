@@ -13,8 +13,8 @@ chunk.o: chunk.h chunk.cc list.o value.o common.h
 debug.o: debug.h debug.cc chunk.o value.o common.h
 	g++ -c debug.cc chunk.o value.o -g
 
-vm.o: vm.h vm.cc chunk.o value.o debug.o compiler.o object.o table.o common.h
-	g++ -c vm.cc chunk.o value.o debug.o compiler.o object.o table.o -g
+vm.o: vm.h vm.cc chunk.o value.o debug.o compiler.o object.o table.o common.h natives.o
+	g++ -c vm.cc chunk.o value.o debug.o compiler.o object.o table.o natives.o -g
 
 scanner.o: scanner.cc scanner.h chunk.o value.o
 	g++ -c scanner.cc chunk.o value.o -g
@@ -33,6 +33,9 @@ compiler/util.o: compiler/util.cc compiler/compiler.h chunk.o value.o scanner.o 
 
 object.o: object.cc object.h
 	g++ -c object.cc -g
+
+natives.o: lib/natives.cc value.cc value.h
+	g++ -c lib/natives.cc -g
 
 table.o: table.cc table.h
 	g++ -c table.cc -g

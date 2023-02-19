@@ -330,7 +330,6 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
         } while (match(TOKEN_COMMA));
     }
 
-    // TODO
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
 
     statement();  // not block(). allow one-liner functions like: fun add(a, b) return a + b;
@@ -338,8 +337,10 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
     // scope not closed. return implicitly pops everything
     emitBytes(OP_NIL, OP_RETURN);
 
+#ifdef COMPILER_DEBUG_PRINT_CODE
     debugger.setChunk(currentChunk());
     debugger.debug((char*) func->name->array.contents);
+#endif
 
     popFunction();
     emitConstantAccess(OBJ_VAL(func));

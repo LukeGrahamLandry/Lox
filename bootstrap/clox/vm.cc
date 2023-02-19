@@ -2,6 +2,7 @@
 #include "compiler/compiler.h"
 #include "common.h"
 #include <cmath>
+#include "lib/natives.cc"
 
 #define FORMAT_RUNTIME_ERROR(format, ...)     \
         fprintf(stderr, format, __VA_ARGS__); \
@@ -17,6 +18,7 @@ VM::VM() {
     resetStack();
     objects = nullptr;
     compiler = Compiler();
+    compiler.natives = &natives;
     compiler.strings = &strings;
     globals = Table();
     strings = Set();
@@ -24,6 +26,12 @@ VM::VM() {
 
     out = &cout;
     err = &cerr;
+    exitCode = 0;
+
+    defineNative("clock", LoxNatives::klock, 0);
+    defineNative("time", LoxNatives::time, 0);
+    defineNative("input", LoxNatives::input, 0);
+    defineNative("eval", LoxNatives::eval, 1);
 }
 
 VM::~VM() {
@@ -52,6 +60,16 @@ bool VM::loadFromSource(char* src) {
     // this doesn't actually run it, just sets it as the current frame on the call stack
     call(function, 0);
     return true;
+}
+
+Value VM::produceFunction(char* src) {
+    ObjFunction* function = compiler.compile(src);
+    if (function == nullptr) return NIL_VAL();
+    if (compiler.objects != nullptr){
+        linkObjects(&objects, compiler.objects);
+        compiler.objects = nullptr;
+    }
+    return OBJ_VAL(function);
 }
 
 inline void VM::push(Value value){
@@ -234,15 +252,21 @@ InterpretResult VM::run() {
                 *out << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
                 break;
             case OP_RETURN: {
-                frameCount--;
-                if (frameCount == 0) {
-                    stackTop = stack;
-                    printValueArray(stack, stackTop);
-                    return INTERPRET_OK;
-                }
-
                 ASSERT_POP(1)
                 Value value = pop();  // get the return value
+
+                frameCount--;
+                if (frameCount == 0) {
+                    resetStack();
+                    if (IS_NUMBER(value)) {
+                        exitCode = (int) AS_NUMBER(value);
+                        return INTERPRET_OK;
+                    } else {
+                        runtimeError("Top level return value must be an integer (for process exit code)");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                }
+
                 stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function locals.
                 CACHE_FRAME()  // point the ip back to the caller's code
                 push(value);  // put the return value back on the stack
@@ -513,6 +537,18 @@ bool VM::callValue(Value value, int argCount) {
             switch (AS_OBJ(value)->type) {
                 case OBJ_FUNCTION:
                     return call(AS_FUNCTION(value), argCount);
+                case OBJ_NATIVE: {
+                    ObjNative* func = AS_NATIVE(value);
+                    if (func->arity != argCount) {
+                        FORMAT_RUNTIME_ERROR("Function call requires %d arguments, cannot pass %d.", func->arity, argCount);
+                        return false;
+                    }
+                    Value result = func->function(this, stackTop - argCount);
+                    stackTop -= argCount + 1;  // +1 for the object being called
+                    push(result);
+                    frames[frameCount - 1].ip = ip;
+                    return true;
+                }
             }
             break;
     }
@@ -540,5 +576,17 @@ bool VM::call(ObjFunction* function, int argCount){
     return true;
 }
 
+ObjString *VM::produceString(const string& str) {
+    return copyString(&strings, &objects, str.c_str(), (int) str.length());
+}
+
+
+void VM::defineNative(const string& name, NativeFn function, int arity) {
+    push(OBJ_VAL(produceString(name)));
+    push(OBJ_VAL(newNative(function, arity, AS_STRING(stack[0]))));
+    natives.set(AS_STRING(stack[0]), stack[1]);
+    pop();
+    pop();
+}
 
 #undef FORMAT_RUNTIME_ERROR

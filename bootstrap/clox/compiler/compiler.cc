@@ -58,6 +58,7 @@ ObjFunction* Compiler::compile(char* src){
         declaration();
     }
 
+    emitConstantAccess(NUMBER_VAL(0));
     emitByte(OP_RETURN);
 
     #ifdef COMPILER_DEBUG_PRINT_CODE
@@ -82,6 +83,26 @@ void Compiler::declaration(){
         case TOKEN_FUN:
             funDeclaration();
             break;
+
+        case TOKEN_IMPORT: {
+            advance();
+            while (check(TOKEN_IDENTIFIER)){
+                parseLocalVariable("Expect identifier after 'import'.");
+                defineLocalVariable();
+                ObjString* name = copyString(strings, &objects, previous.start, previous.length);
+                Value value;
+
+                if (natives->get(name, &value)){
+                    emitConstantAccess(value);
+                } else {
+                    errorAt(previous, "Invalid import");
+                }
+
+                if (!match(TOKEN_COMMA)) break;
+            }
+            consume(TOKEN_SEMICOLON, "Expect ';' after statement.");
+            break;
+        }
         default:
             statement();
             break;

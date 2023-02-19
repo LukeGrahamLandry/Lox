@@ -11,6 +11,7 @@ typedef enum {
     VAL_NIL,
     VAL_NUMBER,
     VAL_OBJ,
+    VAL_NATIVE_POINTER
 } ValueType;
 
 typedef struct Obj Obj;
@@ -21,7 +22,7 @@ union ValueData {
     double number;
     int integer;
     Obj* obj;
-    void* ip;
+    void* pointer;
 };
 
 struct Value {
@@ -43,11 +44,13 @@ struct Value {
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
 #define AS_OBJ(value)     ((value).as.obj)
+#define AS_NATIVE(value) ((ObjNative*)AS_OBJ(value))
 
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
+#define IS_NATIVE(value)       isObjType(value, OBJ_NATIVE)
 
 void printValue(Value value);
 void printValue(Value value, ostream* output);

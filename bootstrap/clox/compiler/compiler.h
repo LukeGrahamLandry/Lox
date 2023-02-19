@@ -64,6 +64,7 @@ public:
 
     Obj* objects;
     Set* strings;
+    Table* natives;
 private:
     Token current;
     Token previous;

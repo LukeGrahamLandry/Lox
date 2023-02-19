@@ -24,9 +24,11 @@
 
 typedef enum {
     OBJ_STRING,
+    OBJ_FUNCTION,
+    OBJ_NATIVE,
+
     OBJ_VALUE_ARRAY,
-    OBJ_BYTE_ARRAY,
-    OBJ_FUNCTION
+    OBJ_BYTE_ARRAY
 } ObjType;
 
 typedef struct ObjString ObjString;
@@ -58,6 +60,7 @@ struct ObjString {
 typedef struct Value Value;
 typedef class Set Set;
 typedef class Chunk Chunk;
+typedef class VM VM;
 
 typedef struct {
     Obj obj;
@@ -68,6 +71,15 @@ typedef struct {
     Chunk* chunk;
     ObjString* name;
 } ObjFunction;
+
+typedef Value (*NativeFn)(VM* vm, Value* args);
+
+typedef struct {
+    Obj obj;
+    NativeFn function;
+    uint8_t arity;
+    ObjString* name;
+} ObjNative;
 
 bool isObjType(Value value, ObjType type);
 ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length);
@@ -81,6 +93,8 @@ uint32_t hashString(const char* chars, uint32_t length);
 void printObjectsList(Obj* head);
 void freeObject(Obj* object);
 ObjFunction* newFunction();
+
+ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
 
 inline void freeStringChars(ObjString* string){
     FREE_ARRAY(char, string->array.contents, string->array.length);

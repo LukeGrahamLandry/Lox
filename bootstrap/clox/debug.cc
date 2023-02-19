@@ -103,8 +103,6 @@ int Debugger::debugInstruction(int offset){
         SIMPLE(OP_ACCESS_INDEX)
         SIMPLE(OP_SLICE_INDEX)
         CONSTANT(OP_DEFINE_GLOBAL)
-        CONSTANT(OP_GET_GLOBAL)
-        CONSTANT(OP_SET_GLOBAL)
         CONSTANT(OP_GET_CONSTANT)
         BYTE_ARG(OP_POP_MANY)
         BYTE_ARG(OP_CALL)

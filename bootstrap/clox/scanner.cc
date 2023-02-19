@@ -145,10 +145,13 @@ TokenType Scanner::identifierType(){
 
     #define END_BRANCH } } else break;
 
-
     switch (*start){
         KEYWORD('a', 2, "nd", TOKEN_AND)
-        KEYWORD('i', 1, "f", TOKEN_IF)
+        START_BRANCH('i')
+            case 'f':
+                return TOKEN_IF;
+            LEAF('m', 4, "port", TOKEN_IMPORT)
+        END_BRANCH
         KEYWORD('n', 2, "il", TOKEN_NIL)
         KEYWORD('o', 1, "r", TOKEN_OR)
         KEYWORD('p', 4, "rint", TOKEN_PRINT)
