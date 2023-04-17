@@ -6,7 +6,7 @@ import java.util.Arrays;
 
 public class Main {
     public static void main(String[] args) {
-        Ast.BlockStmt code = new Ast.BlockStmt(Arrays.asList(
+        Ast.BlockStmt code1 = new Ast.BlockStmt(Arrays.asList(
                 Ast.DefStmt.Type.VARIABLE.of("tempvar", false,
                         Ast.BinaryExpr.Op.DIVIDE.of(
                                 Ast.BinaryExpr.Op.ADD.of(
@@ -30,22 +30,24 @@ public class Main {
                 )
         ));
 
-        Class<?> cls = LyeToClass.compile("example", code);
-        runMain(cls);
-        String loxCode = "var x = 10 * 10 - 50; return x;";
-        runMain(LyeToClass.compile("fromlox", LoxToLyeTree.compile(loxCode)));
+        String loxCode = "var tempvar = (10.0 * (20.0 - 10.0) + 20.0 + 30.0) / 2.0; return tempvar;";
+        Ast.BlockStmt code2 = LoxToLyeTree.compile(loxCode);
 
+        System.out.println("Success: " + (code1.hashCode() == code2.hashCode()));
+        runMain(LyeToClass.compile("from_api", code1));
+        runMain(LyeToClass.compile("from_lox", code2));
+
+        TypeAst.whoIsTheFairestOfThemAll(String.class);
+        TypeAst.memo.forEach(((s, lyeType) -> System.out.println(lyeType.toString())));
     }
 
     public static void runMain(Class<?> cls){
-        System.out.println("----------------------------");
         for (Method m : cls.getMethods()){
             System.out.println("- " + m.getName() + " returns " + m.getReturnType() + " takes " + m.getParameterCount() + " args.");
         }
         try {
             System.out.println("cls name: " + cls.getName());
             System.out.println("inst as string: " + cls.newInstance());
-            System.out.println("methods:");
             Method main = cls.getDeclaredMethod("main");
             double result = (double) main.invoke(null);
             System.out.println("result: " + result);
@@ -53,5 +55,4 @@ public class Main {
             throw new RuntimeException(e);
         }
     }
-
 }

@@ -5,6 +5,8 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.implementation.FixedValue;
 import net.bytebuddy.implementation.Implementation;
+import net.bytebuddy.implementation.bytecode.constant.IntegerConstant;
+import net.bytebuddy.utility.ConstantValue;
 import org.objectweb.asm.Opcodes;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -23,7 +25,10 @@ public class LyeToClass implements Opcodes {
     }
 
     public Class<?> compile(){
+        System.out.println("======== " + name + " ========");
         accept(this.codeTree);
+
+        DecompileTree.print(this.codeTree);
 
         Implementation impl = new CompileExpression().compile(this.codeTree);
 

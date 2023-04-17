@@ -41,7 +41,7 @@ public class AsmExperiment {
     }
 
     public static void asmify() throws IOException {
-        String[] arguments = new String[] {"ca.lukegrahamlandry.lye.Main"};
+        String[] arguments = new String[] {"ca.lukegrahamlandry.lye.asmstuff.AsmExperiment"};
         ASMifier.main(arguments);
     }
 

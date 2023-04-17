@@ -1,5 +1,3 @@
-Based on [Crafting Interpreters](https://craftinginterpreters.com), jlox implemented in python.
-
 ### Language Additions
 
 - block comments (/* ... */)

@@ -62,7 +62,7 @@ public class LoxToLyeTree implements Expr.Visitor<Ast.Expr>, Stmt.Visitor<Ast.St
 
     @Override
     public Ast.Expr visitGroupingExpr(Expr.Grouping expr) {
-        return null;
+        return visit(expr.expression);
     }
 
     @Override
@@ -131,7 +131,7 @@ public class LoxToLyeTree implements Expr.Visitor<Ast.Expr>, Stmt.Visitor<Ast.St
 
     @Override
     public Ast.Stmt visitIfStmt(Stmt.If stmt) {
-        return null;
+        return new Ast.IfStmt(visit(stmt.condition), visit(stmt.thenBranch), visit(stmt.elseBranch));
     }
 
     @Override

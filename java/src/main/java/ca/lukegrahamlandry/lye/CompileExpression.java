@@ -13,32 +13,46 @@ import java.util.HashMap;
 import java.util.List;
 
 public class CompileExpression {
+    private final CompileExpression parent;
+
+    public CompileExpression(){
+        this.parent = null;
+    }
+
+    public CompileExpression(CompileExpression parent) {
+        this.parent = parent;
+        this.variables.putAll(parent.variables);
+    }
+
     public List<StackManipulation> compile(List<Ast.Stmt> code){
         List<StackManipulation> actions = new ArrayList<>();
         for (Ast.Stmt statement : code){
-            if (statement instanceof Ast.DefStmt){
-                Ast.DefStmt e = (Ast.DefStmt) statement;
-                if (e.type == Ast.DefStmt.Type.VARIABLE){
-                    if (variables.containsKey(e.name)){
-                        throw new RuntimeException("Redeclare variable named " + e.name);
-                    }
-
-                    variables.put(e.name, variables.size() * 2);  // doubles take two slots. non-static will need to offset + 1 for 'this' i think
-                    compile(e.value, actions);
-                    actions.add(e.value.getType().asLocalVar.storeAt(variables.get(e.name)));
-                }
-            }
-            else if (statement instanceof Ast.ExprStmt) {
-                Ast.ExprStmt stmt = (Ast.ExprStmt) statement;
-
-                compile(stmt.value, actions);
-                if (stmt.type == Ast.ExprStmt.Type.RETURN){
-                    actions.add(stmt.value.getType().asReturn);
-                    break;
-                }
-            }
+            compile(statement, actions);
         }
         return actions;
+    }
+
+    public void compile(Ast.Stmt statement, List<StackManipulation> actions){
+        if (statement instanceof Ast.DefStmt){
+            Ast.DefStmt e = (Ast.DefStmt) statement;
+            if (e.type == Ast.DefStmt.Type.VARIABLE){
+                if (variables.containsKey(e.name)){
+                    throw new RuntimeException("Redeclare variable named " + e.name);
+                }
+
+                variables.put(e.name, variables.size() * 2);  // doubles take two slots. non-static will need to offset + 1 for 'this' i think
+                compile(e.value, actions);
+                actions.add(e.value.getType().asLocalVar.storeAt(variables.get(e.name)));
+            }
+        }
+        else if (statement instanceof Ast.ExprStmt) {
+            Ast.ExprStmt stmt = (Ast.ExprStmt) statement;
+
+            compile(stmt.value, actions);
+            if (stmt.type == Ast.ExprStmt.Type.RETURN){
+                actions.add(stmt.value.getType().asReturn);
+            }
+        }
     }
 
     private HashMap<String, Integer> variables = new HashMap<>();

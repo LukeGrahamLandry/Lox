@@ -1,11 +1,9 @@
 **/__pycache__
-lox/lib
 **/.DS_Store
-bootstrap/clox/clox
 **/*.o
 **/.idea
 **/*.h.gch
-bootstrap/clox/out/**
+cpp/out/**
 **/.gradle/**/*
 **/build/**/*
-java/lang/src/main/java/com/craftinginterpreters/**/*
+java/src/main/java/com/craftinginterpreters/**/*

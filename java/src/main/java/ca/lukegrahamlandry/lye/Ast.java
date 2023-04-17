@@ -16,6 +16,15 @@ public class Ast {
         public BlockStmt(List<Ast.Stmt> statements) {
             this.statements = statements;
         }
+
+        @Override
+        public int hashCode() {
+            int h = 3141592;
+            for (Ast.Stmt s : statements){
+                h += s.hashCode();
+            }
+            return h;
+        }
     }
 
     public static class DefStmt extends Stmt {
@@ -31,6 +40,11 @@ public class Ast {
             this.type = type;
             this.isFinal = isFinal;
             this.isStatic = isStatic;
+        }
+
+        @Override
+        public int hashCode() {
+            return this.name.hashCode() * (1 + this.value.hashCode());
         }
 
         public enum Type {
@@ -57,6 +71,11 @@ public class Ast {
             this.type = type;
         }
 
+        @Override
+        public int hashCode() {
+            return this.value.hashCode() * (1 + this.type.ordinal());
+        }
+
         public enum Type {
             EVALUATE,
             RETURN;
@@ -69,19 +88,25 @@ public class Ast {
 
     public static class IfStmt extends Stmt {
         public final Expr condition;
-        public final BlockStmt thenBlock;
-        public final BlockStmt elseBlock;
+        public final Stmt thenBlock;
+        public final Stmt elseBlock;
 
-        public IfStmt(Expr condition, BlockStmt thenBlock, BlockStmt elseBlock) {
+        public IfStmt(Expr condition, Stmt thenBlock, Stmt elseBlock) {
             this.condition = condition;
             this.thenBlock = thenBlock;
             this.elseBlock = elseBlock;
+        }
+
+        @Override
+        public int hashCode() {
+            return condition.hashCode() + thenBlock.hashCode() + elseBlock.hashCode();
         }
     }
 
     public static abstract class Expr {
         public abstract LoxType getType();
 
+        // TODO: Use reflection to generate from java definitions
         public enum LoxType {
             BOOLEAN(MethodReturn.INTEGER, MethodVariableAccess.INTEGER),
             NUMBER(MethodReturn.DOUBLE, MethodVariableAccess.DOUBLE),
@@ -117,6 +142,11 @@ public class Ast {
             return LoxType.NUMBER;
         }
 
+        @Override
+        public int hashCode() {
+            return (left.hashCode() + right.hashCode()) * (1 + op.ordinal());
+        }
+
         public enum Op {
             ADD,
             SUBTRACT,
@@ -128,6 +158,36 @@ public class Ast {
 
             public BinaryExpr of(Expr left, Expr right){
                 return new BinaryExpr(left, right, this);
+            }
+        }
+    }
+
+    public static class UnaryExpr extends Expr {
+        public final Expr value;
+        public final Op op;
+
+        private UnaryExpr(Expr value, Op op) {
+            this.value = value;
+            this.op = op;
+        }
+
+        @Override
+        public LoxType getType() {
+            return value.getType();
+        }
+
+        @Override
+        public int hashCode() {
+            return value.hashCode() * (1 + op.ordinal());
+        }
+
+        public enum Op {
+            NONE,
+            NEGATE,
+            NOT;
+
+            public UnaryExpr of(Expr value){
+                return new UnaryExpr(value, this);
             }
         }
     }
@@ -151,6 +211,11 @@ public class Ast {
 
         public static VarExpr ofSet(String name, Expr value){
             return new VarExpr(name, value, Type.SET, value.getType());
+        }
+
+        @Override
+        public int hashCode() {
+            return (name.hashCode() + ((value != null ? value.hashCode() : 0))) * (1 + type.ordinal()) * (1 + kind.ordinal());
         }
 
         @Override
@@ -188,6 +253,13 @@ public class Ast {
             return new LiteralExpr(null, null, b);
         }
 
+        @Override
+        public int hashCode() {
+            if (strValue != null) return strValue.hashCode();
+            if (numValue != null) return numValue.hashCode();
+            if (boolVal != null) return boolVal.hashCode();
+            return 9;  // That's the problem with randomness... You can never be sure.
+        }
 
         public static LiteralExpr ofNil(){
             return new LiteralExpr(null, null, null);
@@ -197,8 +269,26 @@ public class Ast {
         public LoxType getType() {
             if (strValue != null) return LoxType.STRING;
             if (numValue != null) return LoxType.NUMBER;
-            if (boolVal != null) return LoxType.STRING;
+            if (boolVal != null) return LoxType.BOOLEAN;
             return LoxType.NIL;
+        }
+    }
+
+    public static class ClassExpr extends Expr {
+        List<DefStmt> methods;
+        List<DefStmt> fields;
+        List<DefStmt> staticFields;
+
+        @Override
+        public LoxType getType() {
+            return null;
+        }
+    }
+
+    public static class FunctionExpr extends Expr {
+        @Override
+        public LoxType getType() {
+            return null;
         }
     }
 }
