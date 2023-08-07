@@ -1,0 +1,21 @@
+fun first() {
+    fun second() {
+        var c = 3;
+        var d = 4;
+    }
+    var a = 1;
+    second();
+    var b = 2;
+    second();
+}
+
+first();
+
+//fun fib(n) {
+  //if (n < 2) return n;
+  //return fib(n - 2) + fib(n - 1);
+//}
+
+//print(fib(4));
+
+print("done");

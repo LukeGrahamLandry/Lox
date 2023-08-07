@@ -132,6 +132,8 @@ void Chunk::setDone(){
     lines->shrink();
 }
 
+
+// TODO: decide if i care about this and test it
 // length as uint32
 // OP_LOAD_INLINE_CONSTANT
 // - 0

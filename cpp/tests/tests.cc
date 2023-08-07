@@ -3,22 +3,52 @@
 #include "../vm.h"
 #include "../common.h"
 
-void runTest(bool (*func)(), const char* name);
-bool testChunkExports();
 void runOutputTest(const char* name, const char* code, const char* expectedOutput);
+string read(const char* path);
+
+// TODO: copy paste
+char* readFile(const char* path) {
+    FILE* file = fopen(path, "rb");
+
+    if (file == NULL) {
+        fprintf(stderr, "Could not open file \"%s\".\n", path);
+        exit(74);
+    }
+
+    fseek(file, 0L, SEEK_END);
+    size_t fileSize = ftell(file);
+    rewind(file);
+
+    char* buffer = (char*)malloc(fileSize + 1);
+    size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+    buffer[bytesRead] = '\0';
+
+    if (buffer == NULL) {
+        fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
+        exit(74);
+    }
+
+    fclose(file);
+
+    if (bytesRead < fileSize) {
+        fprintf(stderr, "Could not read file \"%s\".\n", path);
+        exit(74);
+    }
+
+    return buffer;
+}
 
 int passed = 0;
 int total = 0;
-string simpleCode = string("var x = 10; x = 50; { print x + 2 / 2; } var hello = \"hello\"; print \"hi\" + \" \" + hello + \".\";");
-const char* binaryPath = "out/code.blox";
 
 int main() {
-    runTest(&testChunkExports, "Export chunks as binary");
     runOutputTest(
             "Index into strings",
-            "print \"hello\"[0]; print \"hello\"[-1]; print \"hello\"[:2]; print \"hello\"[2:]; print \"hello\"[:]; print \"hello\"[1:4]; print \"hello\"[1:-1];",
+            readFile("../tests/case/strings.lox"),
             "h\no\nhe\nllo\nhello\nell\nell\n"
     );
+
+    runOutputTest("functions", readFile("../tests/case/functions.lox"), "done\n");
 
     cout << "Passed " << passed << " of " << total << " tests." << endl;
     return 0;
@@ -34,13 +64,6 @@ void endTest(string& name, bool result){
     else cout << "FAIL";
     cout << " TEST " << total << ": " << name << "." << endl;
     passed += result;
-}
-
-void runTest(bool (*func)(), const char* name) {
-    string n = name;
-    startTest(n);
-    bool result = func();
-    endTest(n, result);
 }
 
 void runOutputTest(const char* name, const char* code, const char* expectedOutput){
@@ -65,30 +88,3 @@ void runOutputTest(const char* name, const char* code, const char* expectedOutpu
     endTest(n, result);
 }
 
-bool testChunkExports() {
-    ostringstream buffer1;
-    ostringstream buffer2;
-    const char* src = simpleCode.c_str();
-
-    VM vm;
-    vm.setOutput(&buffer1);
-    if (!vm.loadFromSource(const_cast<char *>(src))) return false;
-    vm.run();
-
-    // vm.getChunk()->exportAsBinary(binaryPath);
-
-    VM vm2;
-    vm.setOutput(&buffer2);
-    Chunk* chunk = Chunk::importFromBinary(binaryPath);
-    // vm.setChunk(chunk);
-    vm.run();
-
-    bool same = buffer1.str() == buffer2.str();
-    if (!same){
-        cout << "Output from source code vm: " << endl << buffer1.str() << endl;
-        cout << "Output from imported bytecode vm: " << endl << buffer2.str() << endl;
-        cout << "Expected output to match." << endl;
-    }
-
-    return same;
-}

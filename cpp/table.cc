@@ -20,15 +20,21 @@ Table::~Table() {
 
 // returns true if the key was not already in the table. false if it was in the table and its value was replaced.
 bool Table::set(ObjString *key, Value value) {
-    if (count + 1 > maxEntries) adjustCapacity();
     Entry* entry = findEntry(key);
     return setEntry(entry, key, value);
 }
 
 // returns true if the key was not already in the table. false if it was in the table and its value was replaced.
+// This does the resize check, so the entry pointer may point to garbage after calling.
 bool Table::setEntry(Entry* entry, ObjString *key, Value value){
     bool isNewKey = isEmpty(entry);
-    if (isNewKey && IS_NIL(entry->value)) count++;
+    if (isNewKey && IS_NIL(entry->value)) {
+        if (count + 1 > maxEntries) {
+            adjustCapacity();
+            entry = findEntry(key);
+        }
+        count++;
+    }
     entry->key = key;
     entry->value = value;
     return isNewKey;
@@ -61,6 +67,7 @@ void Table::removeAll(){
 }
 
 Entry* Table::findEntry(ObjString *key){
+    if (capacity == 0) adjustCapacity();
     return findEntry(entries, capacity, key);
 }
 
@@ -140,7 +147,6 @@ void Table::addAll(const Table& from) {
 // if it returns false, that means that this key has the same equality as the old one
 // but, it might have a different memory address so the caller has to deal with that.
 bool Table::safeSet(ObjString *key, Value value) {
-    if (count + 1 > maxEntries) adjustCapacity();
     Entry* toEntry;
     safeFindEntry((char*) key->array.contents, key->array.length - 1, key->hash, &toEntry);
     return setEntry(toEntry, key, value);
@@ -163,7 +169,7 @@ bool Table::contains(ObjString *key) {
 // returns true if the string is already a key in the table.
 // <outEntry> is set to either the entry containing the value or the best one to put it in if not found.
 bool Table::safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry){
-    if (count == 0) adjustCapacity();
+    if (capacity == 0) adjustCapacity();
     uint32_t index = hash % capacity;
     Entry* tombstone = nullptr;
     for (;;) {
@@ -186,7 +192,7 @@ bool Table::safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Ent
     }
 }
 
-void Table::printContents() {
+void Table::printContents() const {
     cout << "   HashTable count=" << count << " capacity=" << capacity << endl;
     for (uint32_t i=0;i<capacity;i++){
         Entry* entry = entries + i;

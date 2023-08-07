@@ -32,10 +32,11 @@ public:
     Entry* findEntry(ObjString *key);
     bool setEntry(Entry* entry, ObjString *key, Value value);
     void removeAll();
-    void printContents();
+    void printContents() const;
     bool safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry);
 
 protected:
+    // TODO: why is this static?
     static Entry* findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key);
 
     static inline bool isEmpty(Entry* entry){

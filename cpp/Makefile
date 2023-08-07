@@ -13,7 +13,7 @@ chunk.o: chunk.h chunk.cc list.o value.o common.h
 debug.o: debug.h debug.cc chunk.o value.o common.h
 	g++ -c debug.cc chunk.o value.o -g
 
-vm.o: vm.h vm.cc chunk.o value.o debug.o compiler.o object.o table.o common.h natives.o
+vm.o: vm.h vm.cc chunk.o value.o debug.o compiler/compiler.o object.o table.o common.h natives.o
 	g++ -c vm.cc chunk.o value.o debug.o compiler.o object.o table.o natives.o -g
 
 scanner.o: scanner.cc scanner.h chunk.o value.o
@@ -40,10 +40,10 @@ natives.o: lib/natives.cc value.cc value.h
 table.o: table.cc table.h
 	g++ -c table.cc -g
 
-tests: tests/tests.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h
+tests: tests/tests.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o scanner.o object.o table.o common.h
 	g++ -o out/clox_tests tests/tests.cc util.o compiler.o expression.o flow.o list.o chunk.o list.o memory.o value.o debug.o vm.o scanner.o object.o table.o -g
 
-main: main.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o compiler.o scanner.o object.o table.o common.h
+main: main.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o scanner.o object.o table.o common.h
 	g++ -o out/clox main.cc chunk.o util.o compiler.o expression.o flow.o list.o memory.o value.o debug.o vm.o scanner.o object.o table.o -g
 
 clean:

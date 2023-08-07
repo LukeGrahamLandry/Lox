@@ -96,7 +96,6 @@ inline int VM::stackHeight(){
 InterpretResult VM::run() {
     CallFrame frame;
     Chunk* chunk;
-
     #define CACHE_FRAME()                             \
             frame = frames[frameCount - 1];           \
             chunk = frame.function->chunk;            \
@@ -146,6 +145,7 @@ InterpretResult VM::run() {
                  break;                          \
             }
 
+    cout << "CACHE_FRAME " << frameCount << endl;
     CACHE_FRAME()
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION

@@ -14,6 +14,9 @@ void printValue(Value value, ostream* output){
         case VAL_OBJ:
             printObject(value, output);
             break;
+        case VAL_NATIVE_POINTER:
+            *output << "<native-ptr>";
+            break;
     }
 }
 
