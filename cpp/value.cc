@@ -6,7 +6,9 @@ void printValue(Value value, ostream* output){
             *output << (AS_BOOL(value) ? "true" : "false");
             break;
         case VAL_NUMBER:
-            printf("%.10g", AS_NUMBER(value));
+            char buf[1024];
+            snprintf(buf, 1024, "%.10g", AS_NUMBER(value));
+            *output << buf;
             break;
         case VAL_NIL:
             *output << "nil";

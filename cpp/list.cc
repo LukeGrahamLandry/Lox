@@ -52,7 +52,9 @@ ArrayList<T>::ArrayList(uint32_t size) {
 template<typename T>
 void ArrayList<T>::popMany(int countIn) {
     #ifdef VM_SAFE_MODE
-    if (count < countIn) cerr << "ArrayList of count " << count << " can't pop " << countIn << endl;
+    if (count < countIn) {
+        cerr << "ArrayList of count " << count << " can't pop " << countIn << endl;
+    }
     #endif
     count -= countIn;
 }
@@ -60,7 +62,9 @@ void ArrayList<T>::popMany(int countIn) {
 template<typename T>
 T ArrayList<T>::remove(uint index) {
     #ifdef VM_SAFE_MODE
-    if (index >= count) cerr << "ArrayList of count " << count << " can't remove index " << index << endl;
+    if (index >= count) {
+        cerr << "ArrayList of count " << count << " can't remove index " << index << endl;
+    }
     #endif
 
     T result = get(index);
@@ -137,7 +141,9 @@ void ArrayList<T>::growExact(uint delta) {
 template<typename T>
 void ArrayList<T>::set(uint32_t index, T value) {
     #ifdef VM_SAFE_MODE
-    if (index >= count) cerr << "ArrayList of count " << count << " can't set index " << index << endl;
+    if (index >= count) {
+        cerr << "ArrayList of count " << count << " can't set index " << index << endl;
+    }
     #endif
 
     data[index] = value;
@@ -165,7 +171,9 @@ void ArrayList<T>::push(T value){
 template <typename T>
 T ArrayList<T>::pop(){
     #ifdef VM_SAFE_MODE
-    if (isEmpty()) cerr << "Empty ArrayList can't pop" << endl;
+    if (isEmpty()) {
+        cerr << "Empty ArrayList can't pop" << endl;
+    }
     #endif
 
     count--;
@@ -175,7 +183,9 @@ T ArrayList<T>::pop(){
 template <typename T>
 T ArrayList<T>::get(uint32_t index){
     #ifdef VM_SAFE_MODE
-    if (index >= count)  cerr << "ArrayList of count " << count << " can't get index " << index << endl;
+    if (index >= count)  {
+        cerr << "ArrayList of count " << count << " can't get index " << index << endl;
+    }
     #endif
 
     return data[index];

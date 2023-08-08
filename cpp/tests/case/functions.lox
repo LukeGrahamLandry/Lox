@@ -11,11 +11,42 @@ fun first() {
 
 first();
 
-//fun fib(n) {
-  //if (n < 2) return n;
-  //return fib(n - 2) + fib(n - 1);
-//}
+fun fib(n) {
+  if (n < 2) return n;
+  return fib(n - 2) + fib(n - 1);
+}
 
-//print(fib(4));
+print fib(4);
+
+var x = "global";
+fun outer() {
+  var x = "outer";
+  fun inner() {
+    print x;
+  }
+  inner();
+}
+outer();
+
+{
+    fun outer() {
+      var x = "value";
+      fun middle() {
+        fun inner() {
+          print x;
+        }
+
+        print "create inner closure";
+        return inner;
+      }
+
+      print "return from outer";
+      return middle;
+    }
+
+    var mid = outer();
+    var in = mid();
+    in();
+}
 
 print("done");

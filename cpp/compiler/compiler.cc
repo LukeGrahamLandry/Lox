@@ -18,6 +18,7 @@ Compiler::~Compiler(){
 void Compiler::pushFunction(FunctionType currentFunctionType){
     TargetFunction func;
     func.variableStack = new ArrayList<Local>();
+    func.upvalues = new ArrayList<Upvalue>();
     func.type = currentFunctionType;
     func.function = NULL;
     func.function = newFunction();
@@ -31,14 +32,17 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     local.name.length = 0;
     local.assignments = 0;
     local.isFinal = false;
+    local.isCaptured = false;
     func.variableStack->push(local);
 
     functionStack.push(func);
 }
 
+// TODO: get rid of this cause i dont always call it
 ObjFunction *Compiler::popFunction() {
     TargetFunction func = functionStack.pop();
     delete func.variableStack;
+    delete func.upvalues;
     return func.function;
 }
 
@@ -122,10 +126,11 @@ void Compiler::varStatement(){
 
     parseLocalVariable("Expect variable name.");
 
-    (*locals()->peekLast()).isFinal = isFinal;
+    (*getLocals()->peekLast()).isFinal = isFinal;
+    (*getLocals()->peekLast()).isCaptured = false;
     if (match(TOKEN_EQUAL)){
         expression();
-        (*locals()->peekLast()).assignments++;
+        (*getLocals()->peekLast()).assignments++;
     } else {
         emitByte(OP_NIL);
     }
@@ -149,22 +154,25 @@ void Compiler::beginScope(){
 void Compiler::endScope(){
     // Walk back through the stack and pop off everything in this scope
     int count = emitScopePops(scopeDepth() - 1);
-    locals()->popMany(count);
+    getLocals()->popMany(count);
     functionStack.peekLast()->scopeDepth--;
 }
 
 int Compiler::emitScopePops(int targetDepth){
     int localsCount = 0;
-    for (int i = (int) locals()->count - 1; i >= 0; i--){
-        Local check = locals()->get(i);
+    for (int i = (int) getLocals()->count - 1; i >= 0; i--){
+        Local check = getLocals()->get(i);
         if (check.depth <= targetDepth) {
             break;
         }
-
+        if (check.isCaptured) {
+            emitByte(OP_CLOSE_UPVALUE);
+        } else {
+            emitByte(OP_POP);
+        }
         localsCount++;
     }
 
-    emitPops(localsCount);
     return localsCount;
 }
 
@@ -177,24 +185,25 @@ void Compiler::block(){
     consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
-void Compiler::emitPops(int count){
-    // Future-proof if I increase stack size. I don't want to bother having a two byte operand version of POP.
-    // Since I pop(1) so often, I have a specific opcode that doesn't waste a byte on the argument.
-    while (count > 0){
-        if (count == 1) {
-            emitByte(OP_POP);
-            count--;
-        }
-        else if (count > 255){
-            emitBytes(OP_POP_MANY, 255);
-            count -= 255;
-        }
-        else {
-            emitBytes(OP_POP_MANY, count);
-            count = 0;
-        }
-    }
-}
+// TODO: bring this back. it needs to decide to close upvalues sometimes.
+//void Compiler::emitPops(int count){
+//    // Future-proof if I increase stack size. I don't want to bother having a two byte operand version of POP.
+//    // Since I pop(1) so often, I have a specific opcode that doesn't waste a byte on the argument.
+//    while (count > 0){
+//        if (count == 1) {
+//            emitByte(OP_POP);
+//            count--;
+//        }
+//        else if (count > 255){
+//            emitBytes(OP_POP_MANY, 255);
+//            count -= 255;
+//        }
+//        else {
+//            emitBytes(OP_POP_MANY, count);
+//            count = 0;
+//        }
+//    }
+//}
 
 void Compiler::statement(){
     switch (current.type) {

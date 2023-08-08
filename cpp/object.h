@@ -16,16 +16,20 @@
 #define IS_VALUE_ARRAY(value)       (isObjType(value, OBJ_VALUE_ARRAY))
 #define IS_ARRAY(value)       (IS_STRING(value) || IS_BYTE_ARRAY(value) IS_VALUE_ARRAY(value))
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
+#define IS_CLOSURE(value)     isObjType(value, OBJ_CLOSURE)
 
 #define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      ((char*) ((ObjString*)AS_OBJ(value))->array.contents)
 #define AS_ARRAY(value)   ((ObjArray){VAL_OBJ, {.obj = (Obj*)AS_OBJ()})
+#define AS_CLOSURE(value)       ((ObjClosure*)AS_OBJ(value))
 
 typedef enum {
     OBJ_STRING,
     OBJ_FUNCTION,
     OBJ_NATIVE,
+    OBJ_CLOSURE,
+    OBJ_UPVALUE,
 
     OBJ_VALUE_ARRAY,
     OBJ_BYTE_ARRAY
@@ -65,11 +69,12 @@ typedef class VM VM;
 typedef struct {
     Obj obj;
     // The compiler limits number of arguments to 1 byte.
-    // Even once I allow higher stack indexes for locals, the limitation here doesn't feel unreasonable.
+    // Even once I allow higher stack indexes for getLocals, the limitation here doesn't feel unreasonable.
     // Nobody manually writes a function with 256 arguments and if you're generating one there's probably a better way.
     uint8_t arity;
     Chunk* chunk;
     ObjString* name;
+    int upvalueCount;
 } ObjFunction;
 
 typedef Value (*NativeFn)(VM* vm, Value* args);
@@ -80,6 +85,20 @@ typedef struct {
     uint8_t arity;
     ObjString* name;
 } ObjNative;
+
+typedef struct ObjUpvalue {
+    Obj obj;
+    Value* location;
+    ObjUpvalue* next;
+    Value closed;
+} ObjUpvalue;
+
+typedef struct ObjClosure {
+    Obj obj;
+    ObjFunction* function;
+    ArrayList<ObjUpvalue*> upvalues;
+} ObjClosure;
+
 
 bool isObjType(Value value, ObjType type);
 ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length);
@@ -93,6 +112,8 @@ uint32_t hashString(const char* chars, uint32_t length);
 void printObjectsList(Obj* head);
 void freeObject(Obj* object);
 ObjFunction* newFunction();
+ObjClosure* newClosure(ObjFunction* function);
+ObjUpvalue* newUpvalue(Value* function);
 
 ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
 

@@ -18,7 +18,7 @@ typedef enum {
 } InterpretResult;
 
 typedef struct {
-    ObjFunction* function;
+    ObjClosure* closure;
     uint8_t* ip;
     Value* slots;
 } CallFrame;
@@ -59,6 +59,7 @@ public:
     Set strings;
     Table natives;
     Obj* objects;
+    ObjUpvalue* openUpvalues;
 private:
     Compiler compiler;
     Value stack[STACK_MAX];  // working memory. my equivalent of registers
@@ -105,13 +106,16 @@ private:
     double getSequenceLength(Value array);
 
     inline Chunk* currentChunk(){
-        return frames[frameCount - 1].function->chunk;
+        return frames[frameCount - 1].closure->function->chunk;
     }
 
     bool callValue(Value value, int count);
 
-    bool call(ObjFunction *function, int argCount);
+    bool call(ObjClosure *closure, int argCount);
     void defineNative(const string& name, NativeFn function, int arity);
+
+    ObjUpvalue* captureUpvalue(Value* local);
+    void closeUpvalues(Value* last);
 };
 
 

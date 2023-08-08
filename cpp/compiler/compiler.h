@@ -32,8 +32,9 @@ typedef enum {
 typedef struct {
     Token name;
     int depth;
-    bool isFinal;
     int assignments;
+    bool isFinal;
+    bool isCaptured;
 } Local;
 
 typedef struct {
@@ -49,10 +50,16 @@ typedef enum {
 } FunctionType;
 
 typedef struct {
+    uint8_t index;
+    bool isLocal;  // is index a stack offset or an upvalue index?
+} Upvalue;
+
+typedef struct {
     FunctionType type;
     ObjFunction* function;
     ArrayList<Local>* variableStack;
     int scopeDepth;
+    ArrayList<Upvalue>* upvalues;  // TODO: dont heap allocate the lists
 } TargetFunction;
 
 class Compiler {
@@ -124,6 +131,7 @@ private:
     byte identifierConstant(Token name);
 
     void namedVariable(Token name, bool canAssign);
+    int resolveUpvalue(int funcIndex, Token* name);
 
     void beginScope();
 
@@ -141,7 +149,8 @@ private:
 
     void emitPops(int count);
 
-    int resolveLocal(Token name);
+    int resolveLocal(TargetFunction* func, Token name);
+    int addUpvalue(TargetFunction* func, uint8_t local, bool isLocal);
 
     int emitJumpIfTrue();
 
@@ -164,7 +173,7 @@ private:
 
     void pushFunction(FunctionType currentFunctionType);
     ObjFunction* popFunction();
-    ArrayList<Local>* locals(){
+    ArrayList<Local>* getLocals(){
         return functionStack.peekLast()->variableStack;
     }
     int scopeDepth(){

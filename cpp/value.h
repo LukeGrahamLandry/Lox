@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "list.cc"
-#include "object.h"
 
 
 typedef enum {
@@ -29,6 +28,8 @@ struct Value {
     ValueType type;
     ValueData as;
 };
+
+#include "object.h"
 
 
 // c type -> Value

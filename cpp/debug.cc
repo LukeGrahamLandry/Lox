@@ -109,6 +109,9 @@ int Debugger::debugInstruction(int offset){
         BYTE_ARG(OP_GET_LENGTH)
         BYTE_ARG(OP_GET_LOCAL)
         BYTE_ARG(OP_SET_LOCAL)
+        BYTE_ARG(OP_GET_UPVALUE)
+        BYTE_ARG(OP_SET_UPVALUE)
+        SIMPLE(OP_CLOSE_UPVALUE)
         case OP_JUMP:
             return jumpInstruction("OP_JUMP", 1, chunk, offset);
         case OP_JUMP_IF_FALSE:
@@ -147,6 +150,22 @@ int Debugger::debugInstruction(int offset){
                 default:
                     printf("%-16s %d Invalid Value Type \n", "OP_LOAD_INLINE_CONSTANT", type);
                     break;
+            }
+            return offset;
+        }
+        case OP_CLOSURE: {
+            offset++;
+            uint8_t constant = chunk->getCodePtr()[offset++];
+            printf("%-16s %4d ", "OP_CLOSURE", constant);
+            Value f_val = chunk->getConstant(constant);
+            printValue(f_val);
+            printf("\n");
+
+            ObjFunction* function = AS_FUNCTION(f_val);
+            for (int j = 0; j < function->upvalueCount; j++) {
+                int isLocal = chunk->getCodePtr()[offset++];
+                int index = chunk->getCodePtr()[offset++];
+                printf("%04d      |                     %s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
             }
             return offset;
         }

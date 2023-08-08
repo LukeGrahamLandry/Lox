@@ -48,7 +48,9 @@ int main() {
             "h\no\nhe\nllo\nhello\nell\nell\n"
     );
 
-    runOutputTest("functions", readFile("../tests/case/functions.lox"), "done\n");
+
+
+    runOutputTest("functions", readFile("../tests/case/functions.lox"), "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n");
 
     cout << "Passed " << passed << " of " << total << " tests." << endl;
     return 0;

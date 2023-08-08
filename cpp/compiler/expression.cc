@@ -232,7 +232,7 @@ int Compiler::parseLocalVariable(const char* errorMessage) {
 
 // for preventing self reference in a definition
 int Compiler::declareLocalVariable(){
-    if (locals()->count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
+    if (getLocals()->count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
         errorAt(previous, "Too many local variables in function.");
         return -1;
     }
@@ -243,8 +243,8 @@ int Compiler::declareLocalVariable(){
     local.assignments = 0;
     local.isFinal = false;
 
-    for (int i= (int) locals()->count - 1; i >= 0; i--){
-        Local check = locals()->get(i);
+    for (int i= (int) getLocals()->count - 1; i >= 0; i--){
+        Local check = getLocals()->get(i);
         // since <variableStack> is a stack, the first timeMS you see something of a higher scope, everything will be
         if (check.depth != -1 && check.depth < scopeDepth()) break;
         if (identifiersEqual(check.name, local.name)) {
@@ -252,20 +252,21 @@ int Compiler::declareLocalVariable(){
         }
     }
 
-    locals()->push(local);
+    getLocals()->push(local);
 
-    return (int) locals()->count - 1;
+    return (int) getLocals()->count - 1;
 }
 
 void Compiler::defineLocalVariable(){
     // Mark initialized
-    (*locals()->peekLast()).depth = scopeDepth();
+    (*getLocals()->peekLast()).depth = scopeDepth();
     // NO-OP at runtime, it just flows over and the stack slot becomes a local
 }
 
-int Compiler::resolveLocal(Token name){
-    for (int i= (int) locals()->count - 1; i >= 0; i--){
-        Local check = locals()->get(i);
+int Compiler::resolveLocal(TargetFunction* func, Token name){
+    ArrayList<Local>* locals = func->variableStack;
+    for (int i= (int) locals->count - 1; i >= 0; i--){
+        Local check = locals->get(i);
         if (identifiersEqual(check.name, name)) {
             if (check.depth == -1) {
                 errorAt(previous, "Can't read local variable in its own initializer.");
@@ -289,33 +290,80 @@ const_index_t Compiler::identifierConstant(Token name) {
 
 void Compiler::namedVariable(Token name, bool canAssign) {
     // TODO: need another opcode if i grow the stack and allow >256 variableStack
-    int local = resolveLocal(name);
+    int local = resolveLocal(functionStack.peekLast(), name);
 
-    if (local == -1){
-        errorAt(previous, "Undeclared variable.");
-        return;
+    OpCode set_op = OP_SET_LOCAL;
+    OpCode get_op = OP_GET_LOCAL;
+
+    if (local == -1) {
+        int upi = resolveUpvalue(functionStack.count - 1, &name);
+        if (upi != -1) {
+            set_op = OP_SET_UPVALUE;
+            get_op = OP_GET_UPVALUE;
+            local = upi;
+        } else {
+            errorAt(previous, "Undeclared variable.");
+            return;
+        }
     }
 
     // If the variable is inside a high precedence expression, it has to be a get not a set.
     // Like a * b = c should be a syntax error not parse as a * (b = c).
     if (canAssign && match(TOKEN_EQUAL)){
-        Local* variable = locals()->peek(local);
+        Local* variable = getLocals()->peek(local);
         if (variable->assignments++ != 0 && variable->isFinal) {
             errorAt(previous, "Cannot assign to final variable.");
             return;
         }
         expression();
-        emitBytes(OP_SET_LOCAL, local);
+        emitBytes(set_op, local);
     } else {
-        emitGetAndCheckRedundantPop(OP_GET_LOCAL, OP_SET_LOCAL, local);
+        emitGetAndCheckRedundantPop(get_op, set_op, local);
     }
+}
+
+int Compiler::resolveUpvalue(int funcIndex, Token* name) {
+    auto currentFunc = &functionStack.data[funcIndex];
+    int local = resolveLocal(&functionStack.data[funcIndex - 1], *name);
+    if (local != -1){
+        functionStack.data[funcIndex - 1].variableStack->data[local].isCaptured = true;
+        return addUpvalue(currentFunc, (uint8_t)local, true);
+    }
+
+    // in the main script and didn't find it.
+    if (funcIndex == 0) return -1;
+
+    int upvalue = resolveUpvalue(funcIndex - 1, name);
+    if (upvalue != -1) {
+        return addUpvalue(currentFunc, (uint8_t)upvalue, false);
+    }
+
+    // got to the main script without finding it.
+    return -1;
+}
+
+int Compiler::addUpvalue(TargetFunction* func, uint8_t index, bool isLocal) {
+    for (int i=0;i<func->upvalues->count;i++) {
+        Upvalue val = func->upvalues->get(i);
+        if (val.index == index && val.isLocal == isLocal) {
+            return i;
+        }
+    }
+
+    Upvalue val = { index, isLocal };
+    func->upvalues->push(val);
+    if (func->function->upvalueCount >= 255) {  // TODO
+        cerr << "Too many up values. Need bigger index!" << endl;
+    }
+    return func->function->upvalueCount++;
 }
 
 void Compiler::functionExpression(FunctionType funcType, ObjString* name){
     pushFunction(funcType);
     ObjFunction* func = functionStack.peekLast()->function;
     func->name = name;
-    
+
+    Token t = previous;
     beginScope();
     consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
 
@@ -342,8 +390,23 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
     debugger.debug((char*) func->name->array.contents);
 #endif
 
-    popFunction();
-    emitConstantAccess(OBJ_VAL(func));
+    TargetFunction target = functionStack.pop();
+
+    const_index_t location = currentChunk()->addConstant(OBJ_VAL(func));
+    emitBytes(OP_CLOSURE, location);
+
+    if (target.upvalues->count != target.function->upvalueCount) {
+        errorAt(t, "ICE. Incorrect upvalue count");
+    }
+
+    for (int i=0;i<func->upvalueCount;i++) {
+        Upvalue val = target.upvalues->get(i);
+        emitByte(val.isLocal ? 1 : 0);
+        emitByte(val.index);
+    }
+
+    delete target.variableStack;
+    delete target.upvalues;
 }
 
 int Compiler::argumentList(){

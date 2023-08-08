@@ -27,6 +27,7 @@ VM::VM() {
     out = &cout;
     err = &cerr;
     exitCode = 0;
+    openUpvalues = nullptr;
 
     defineNative("clock", LoxNatives::klock, 0);
     defineNative("time", LoxNatives::time, 0);
@@ -56,9 +57,13 @@ bool VM::loadFromSource(char* src) {
     }
 
     push(OBJ_VAL(function));
+    ObjClosure* closure = newClosure(function);
+    pop();
+    push(OBJ_VAL(closure));
 
     // this doesn't actually run it, just sets it as the current frame on the call stack
-    call(function, 0);
+    call(closure, 0);
+
     return true;
 }
 
@@ -98,7 +103,7 @@ InterpretResult VM::run() {
     Chunk* chunk;
     #define CACHE_FRAME()                             \
             frame = frames[frameCount - 1];           \
-            chunk = frame.function->chunk;            \
+            chunk = frame.closure->function->chunk;            \
             ip = frame.ip;                            \
 
     #define READ_BYTE() (*(ip++))
@@ -145,12 +150,15 @@ InterpretResult VM::run() {
                  break;                          \
             }
 
-    cout << "CACHE_FRAME " << frameCount << endl;
     CACHE_FRAME()
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
-        if (!Debugger::silent) printValueArray(stack, stackTop);
-        int instructionOffset = (int) (ip - frame.function->chunk->getCodePtr());
+        if (!Debugger::silent) {
+            cout << frame.slots - stack;
+            printValueArray(stack, stackTop);
+        }
+
+        int instructionOffset = (int) (ip - frame.closure->function->chunk->getCodePtr());
         debug.setChunk(chunk);
         debug.debugInstruction(instructionOffset);
         #endif
@@ -267,9 +275,42 @@ InterpretResult VM::run() {
                     }
                 }
 
-                stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function locals.
+                closeUpvalues(frame.slots);  // Check if any locals we're about to pop need to be promoted to upvalues.
+                stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function getLocals.
                 CACHE_FRAME()  // point the ip back to the caller's code
                 push(value);  // put the return value back on the stack
+                break;
+            }
+            case OP_CLOSURE: {
+                ASSERT_POP(1)
+                ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
+                ObjClosure* closure = newClosure(function);
+                push(OBJ_VAL(closure));
+
+                for (int i=0;i<function->upvalueCount;i++) {
+                    uint8_t isLocal = READ_BYTE();
+                    uint8_t index = READ_BYTE();
+                    if (isLocal) {
+                        closure->upvalues.push(captureUpvalue(frame.slots + index));
+                    } else {
+                        closure->upvalues.push(frame.closure->upvalues.get(index));
+                    }
+                }
+                break;
+            }
+            case OP_CLOSE_UPVALUE: {
+                closeUpvalues(stackTop - 1);
+                pop();
+                break;
+            }
+            case OP_GET_UPVALUE: {
+                uint8_t slot = READ_BYTE();
+                push(*frame.closure->upvalues.get(slot)->location);
+                break;
+            }
+            case OP_SET_UPVALUE: {
+                uint8_t slot = READ_BYTE();
+                *frame.closure->upvalues.get(slot)->location = peek(0);
                 break;
             }
             case OP_NIL:
@@ -356,6 +397,50 @@ InterpretResult VM::run() {
     #undef READ_SHORT
 }
 
+ObjUpvalue* VM::captureUpvalue(Value* local){
+#ifdef VM_DEBUG_TRACE_EXECUTION
+    cout << "[Capture]: ";
+    printValue(*local);
+    cout << endl;
+#endif
+
+    ObjUpvalue* prev = nullptr;
+    ObjUpvalue* val = openUpvalues;
+    while (val != nullptr && val->location > local) {
+        prev = val;
+        val = val->next;
+    }
+
+    if (val != nullptr && val->location == local) {
+        return val;
+    }
+
+    ObjUpvalue* newVal = newUpvalue(local);
+    newVal->next = val;
+    if (prev == nullptr) {
+        openUpvalues = newVal;
+    } else {
+        prev->next = newVal;
+    }
+    return newVal;
+}
+
+void VM::closeUpvalues(Value* last) {
+    // The locations point to the stack so the pointer order is meaningful.
+    // Go along open upvalues until you hit on earlier in the stack than <last>.
+    while (openUpvalues != nullptr && openUpvalues->location >= last) {
+#ifdef VM_DEBUG_TRACE_EXECUTION
+        cout << "[Close] ";
+        printValue(*openUpvalues->location);
+        cout << endl;
+#endif
+        // Steak the value and point to yourself instead of the stack.
+        openUpvalues->closed = *openUpvalues->location;
+        openUpvalues->location = &openUpvalues->closed;
+        openUpvalues = openUpvalues->next;
+    }
+}
+
 void VM::runtimeError(const string& message){
     *err << message << endl;
     printStackTrace(err);
@@ -364,7 +449,7 @@ void VM::runtimeError(const string& message){
 void VM::printStackTrace(ostream* output){
     for (int i = frameCount - 1; i >= 0; i--) {
         CallFrame* frame = &frames[i];
-        ObjFunction* function = frame->function;
+        ObjFunction* function = frame->closure->function;
         int instructionOffset = (int) (frame->ip - function->chunk->getCodePtr() - 1);
         int line = function->chunk->getLineNumber(instructionOffset);
         *output << "[line " << line << "] in ";
@@ -404,7 +489,7 @@ void VM::freeObjects(){
 }
 
 void VM::printDebugInfo() {
-    Chunk* chunk = frames[frameCount - 1].function->chunk;
+    Chunk* chunk = frames[frameCount - 1].closure->function->chunk;
     *out << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
     *out << "Allocated Heap Objects:" << endl;
@@ -535,8 +620,8 @@ bool VM::callValue(Value value, int argCount) {
     switch (value.type) {
         case VAL_OBJ:
             switch (AS_OBJ(value)->type) {
-                case OBJ_FUNCTION:
-                    return call(AS_FUNCTION(value), argCount);
+                case OBJ_CLOSURE:
+                    return call(AS_CLOSURE(value), argCount);
                 case OBJ_NATIVE: {
                     ObjNative* func = AS_NATIVE(value);
                     if (func->arity != argCount) {
@@ -549,6 +634,10 @@ bool VM::callValue(Value value, int argCount) {
                     frames[frameCount - 1].ip = ip;
                     return true;
                 }
+                case OBJ_FUNCTION:
+                    runtimeError("ICE. No direct function call. Must wrap with closure.");
+                default:
+                    break;
             }
             break;
     }
@@ -557,7 +646,8 @@ bool VM::callValue(Value value, int argCount) {
 }
 
 // remember to always use CACHE_FRAME() in the run loop.
-bool VM::call(ObjFunction* function, int argCount){
+bool VM::call(ObjClosure* closure, int argCount){
+    ObjFunction* function = closure->function;
     if (frameCount == FRAMES_MAX){
         FORMAT_RUNTIME_ERROR("Frame stack overflow. Cannot recurse more than %d levels.", FRAMES_MAX);
         return false;
@@ -569,7 +659,7 @@ bool VM::call(ObjFunction* function, int argCount){
     }
 
     if (frameCount > 0) frames[frameCount - 1].ip = ip;
-    frames[frameCount].function = function;
+    frames[frameCount].closure = closure;
     frames[frameCount].ip = function->chunk->getCodePtr();
     frames[frameCount].slots = stackTop - argCount - 1;
     frameCount++;

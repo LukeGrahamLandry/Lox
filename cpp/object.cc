@@ -98,6 +98,16 @@ void freeObject(Obj* object){
             FREE(ObjNative, object);
             break;
         }
+        case OBJ_CLOSURE: {
+            // Multiple closures can reference the same function.
+            // ArrayList destructor frees itself. We don't own the upvalue objects.
+            FREE(ObjClosure, object);
+            break;
+        }
+        case OBJ_UPVALUE: {
+            FREE(ObjUpvalue, object);
+            break;
+        }
     }
 }
 
@@ -117,7 +127,7 @@ void printObject(Value value, ostream* output){
             break;
         case OBJ_FUNCTION: {
             ObjString* name = AS_FUNCTION(value)->name;
-            *output << "<fn " << (name == nullptr ? "script" : (char*) name->array.contents) << ">";
+            *output << "<raw-fn " << (name == nullptr ? "script" : (char*) name->array.contents) << ">";
             break;
         }
         case OBJ_NATIVE: {
@@ -125,6 +135,14 @@ void printObject(Value value, ostream* output){
             *output << "<native-fn " << (name == nullptr ? "?" : (char*) name->array.contents) << ">";
             break;
         }
+        case OBJ_CLOSURE: {
+            ObjString *name = AS_CLOSURE(value)->function->name;
+            *output << "<fn " << (name == nullptr ? "script" : (char *) name->array.contents) << ">";
+            break;
+        }
+        case OBJ_UPVALUE:
+            *output << "upvalue?";
+            break;
         default:
             *output << "Untagged Obj " << AS_OBJ(value);
     }
@@ -141,6 +159,18 @@ void printObjectOwnedAddresses(Value value){
             break;
         case OBJ_FUNCTION:
             cout << (void*) AS_FUNCTION(value)->chunk;
+            break;
+        case OBJ_NATIVE:
+            cout << "TODO";
+            break;
+        case OBJ_CLOSURE:
+            cout << "TODO";
+            break;
+        case OBJ_VALUE_ARRAY:
+            cout << "TODO";
+            break;
+        case OBJ_BYTE_ARRAY:
+            cout << "TODO";
             break;
     }
 }
@@ -163,6 +193,7 @@ ObjFunction* newFunction() {
     function->arity = 0;
     function->name = NULL;
     function->chunk = new Chunk;
+    function->upvalueCount = 0;
     return function;
 }
 
@@ -172,4 +203,22 @@ ObjNative *newNative(NativeFn function, uint8_t arity, ObjString* name) {
     native->arity = arity;
     native->name = name;
     return native;
+}
+
+ObjClosure* newClosure(ObjFunction* function) {
+    ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
+    closure->function = function;
+    closure->upvalues.growExact(function->upvalueCount);
+    for (int i=0;i<function->upvalueCount;i++) {
+        closure->upvalues.data[i] = nullptr;
+    }
+    return closure;
+}
+
+ObjUpvalue* newUpvalue(Value* location) {
+    ObjUpvalue* val = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+    val->location = location;
+    val->next = nullptr;
+    val->closed = NIL_VAL();
+    return val;
 }
