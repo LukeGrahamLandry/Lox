@@ -1,8 +1,7 @@
-#include "object.h"
-#include "memory.h"
 #include "value.h"
 #include "vm.h"
 #include "common.h"
+#include "object.h"
 
 bool isObjType(Value value, ObjType type){
     return value.type == VAL_OBJ && AS_OBJ(value)->type == type;
@@ -15,7 +14,7 @@ bool isObjType(Value value, ObjType type){
 // So if you're looking at someone else's string, like the src from the scanner, you need to copy it.
 // <length> must not include the null terminator.
 // TODO: flag for being a constant string where the object doesnt own the memory, just point into the src string.
-ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length){
+ObjString* Memory::copyString(const char* chars, int length){
     #ifdef VM_SAFE_MODE
     if (length < 0) cerr << "Cannot allocate string of negative length " << length << endl;
     #endif
@@ -24,7 +23,7 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
 
     Entry* slot;
     ObjString* str;
-    bool wasInterned = internedStrings->safeFindEntry(chars, length, hash, &slot);
+    bool wasInterned = strings->safeFindEntry(chars, length, hash, &slot);
     if (wasInterned){
         str = slot->key;
     } else {
@@ -33,8 +32,7 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
         ptr[length] = '\0';
 
         str = allocateString(ptr, length, hash);
-        internedStrings->setEntry(slot, str, NIL_VAL());
-        linkObjects(objectsHead, RAW_OBJ(str));
+        strings->setEntry(slot, str, NIL_VAL());
     }
 
     return str;
@@ -43,12 +41,12 @@ ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars
 // Used when we already own that memory.
 // The caller is giving away the memory to the new ObjString returned, so we're allowed to free it if it's a duplicate.
 // This requires <chars> to be a null terminated string with the terminator NOT included in the <length>.
-ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint32_t length) {
+ObjString* Memory::takeString(char* chars, uint32_t length) {
     uint32_t hash = hashString(chars, length);
 
     Entry* slot;
     ObjString* str;
-    bool wasInterned = internedStrings->safeFindEntry(chars, length, hashString(chars, length), &slot);
+    bool wasInterned = strings->safeFindEntry(chars, length, hashString(chars, length), &slot);
     if (wasInterned){
         str = slot->key;
         FREE_ARRAY(char, chars,  length + 1);  // + 1 for null terminator
@@ -56,15 +54,14 @@ ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint
         VM* vm = (VM*) evilVmGlobal;
         str = allocateString(chars, length, hash);
         vm->push(OBJ_VAL(str));
-        internedStrings->setEntry(slot, str, NIL_VAL());
-        linkObjects(objectsHead, RAW_OBJ(str));
+        strings->setEntry(slot, str, NIL_VAL());
         vm->pop();
     }
 
     return str;
 }
 
-ObjString* allocateString(char* chars, uint32_t length, uint32_t hash) {
+ObjString* Memory::allocateString(char* chars, uint32_t length, uint32_t hash) {
     ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     string->array.contents = chars;
     string->array.length = length + 1;
@@ -72,9 +69,10 @@ ObjString* allocateString(char* chars, uint32_t length, uint32_t hash) {
     return string;
 }
 
-// Note: this doesn't push it to the linked list! The caller is responsible for not loosing it.
-Obj* allocateObject(size_t size, ObjType type) {
+Obj* Memory::allocateObject(size_t size, ObjType type) {
     Obj* object = RAW_OBJ(reallocate(nullptr, 0, size));
+    object->next = nullptr;
+    linkObjects(&objects, object);
     object->type = type;
     object->isMarked = false;
 #ifdef DEBUG_LOG_GC
@@ -83,7 +81,7 @@ Obj* allocateObject(size_t size, ObjType type) {
     return object;
 }
 
-void freeObject(Obj* object){
+void Memory::freeObject(Obj* object){
 #ifdef DEBUG_LOG_GC
     printf("%p free type %d\n", (void*)object, object->type);
 #endif
@@ -97,6 +95,7 @@ void freeObject(Obj* object){
         }
         case OBJ_FUNCTION: {
             ObjFunction* function = (ObjFunction*)object;
+            function->chunk->release(*this);
             delete function->chunk;
             FREE(ObjFunction , object);
             break;
@@ -107,7 +106,8 @@ void freeObject(Obj* object){
         }
         case OBJ_CLOSURE: {
             // Multiple closures can reference the same function.
-            // ArrayList destructor frees itself. We don't own the upvalue objects.
+            //  We don't own the upvalue objects.
+            ((ObjClosure*)object)->upvalues.release(*this);
             FREE(ObjClosure, object);
             break;
         }
@@ -173,12 +173,6 @@ void printObjectOwnedAddresses(Value value){
         case OBJ_CLOSURE:
             cout << "TODO";
             break;
-        case OBJ_VALUE_ARRAY:
-            cout << "TODO";
-            break;
-        case OBJ_BYTE_ARRAY:
-            cout << "TODO";
-            break;
     }
 }
 
@@ -195,7 +189,7 @@ void printObjectsList(Obj* head){
     }
 }
 
-ObjFunction* newFunction() {
+ObjFunction* Memory::newFunction() {
     ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
     function->arity = 0;
     function->name = NULL;
@@ -204,7 +198,7 @@ ObjFunction* newFunction() {
     return function;
 }
 
-ObjNative *newNative(NativeFn function, uint8_t arity, ObjString* name) {
+ObjNative *Memory::newNative(NativeFn function, uint8_t arity, ObjString* name) {
     ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
     native->function = function;
     native->arity = arity;
@@ -212,21 +206,174 @@ ObjNative *newNative(NativeFn function, uint8_t arity, ObjString* name) {
     return native;
 }
 
-ObjClosure* newClosure(ObjFunction* function) {
+ObjClosure* Memory::newClosure(ObjFunction* function) {
     ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
     closure->function = function;
     // Not updating count here. Caller uses push on array list.
-    closure->upvalues.growExact(function->upvalueCount);
+    closure->upvalues.growExact(function->upvalueCount, *this);
     for (int i=0;i<function->upvalueCount;i++) {
         closure->upvalues.data[i] = nullptr;
     }
     return closure;
 }
 
-ObjUpvalue* newUpvalue(Value* location) {
+ObjUpvalue* Memory::newUpvalue(Value* location) {
     ObjUpvalue* val = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
     val->location = location;
     val->next = nullptr;
     val->closed = NIL_VAL();
     return val;
+}
+
+void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize) {
+    return reallocate(pointer, oldSize, newSize, true);
+}
+
+void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize, bool allowGC){
+    if (newSize == 0){
+        free(pointer);
+        return nullptr;
+    }
+
+    if (allowGC && enable && newSize > oldSize) {
+#ifdef DEBUG_STRESS_GC
+        collectGarbage();
+#endif
+    }
+
+    void* result = realloc(pointer, newSize);
+    if (result == nullptr) {
+        cerr << "Failed to reallocate from " << oldSize << " to " << newSize << endl;
+        free(pointer);
+        exit(1);
+    }
+
+    return result;
+}
+
+void Memory::collectGarbage() {
+#ifdef DEBUG_LOG_GC
+    cout << "-- gc begin\n";
+#endif
+
+    markRoots();
+    traceReferences();
+    strings->removeUnmarkedKeys();
+    sweep();
+
+#ifdef DEBUG_LOG_GC
+    cout << "-- gc end\n";
+#endif
+}
+
+void Memory::markRoots() {
+    if (evilVmGlobal == nullptr) return;
+
+    for (Value* slot=stack;slot<stackTop;slot++) {
+        markValue(*slot);
+    }
+
+    ObjUpvalue* val = openUpvalues;
+    while (val != nullptr) {
+        markObject((Obj*) val);
+        val = val->next;
+    }
+
+    for (uint32_t i=0;i<natives->capacity;i++){
+        Entry* entry = natives->entries + i;
+        if (!Table::isEmpty(entry)) {
+            markObject((Obj*) entry->key);
+            markValue(entry->value);
+        }
+    }
+
+    if (evilCompilerGlobal != nullptr) ((Compiler*) evilCompilerGlobal)->markRoots();
+}
+
+void Memory::traceReferences() {
+    while (!grayStack.empty()) {
+        Obj* object = grayStack.back();
+        grayStack.pop_back();
+#ifdef DEBUG_LOG_GC
+        printf("%p blacken ", (void*)object);
+        printValue(OBJ_VAL(object));
+        printf("\n");
+#endif
+        switch (object->type) {
+            case OBJ_STRING:
+            case OBJ_NATIVE:
+                break;
+
+            case OBJ_FUNCTION: {
+                auto* function = (ObjFunction*) object;
+                markObject((Obj*) function->name);
+                for (int i=0;i<function->chunk->getConstantsSize();i++){
+                    markValue(function->chunk->getConstant(i));
+                }
+                break;
+            }
+            case OBJ_CLOSURE: {
+                auto* closure = (ObjClosure*) object;
+                markObject((Obj*) closure->function);
+                for (int i=0;i<closure->upvalues.count;i++){
+                    markObject((Obj*) closure->upvalues[i]);
+                }
+                break;
+            }
+            case OBJ_UPVALUE: {
+                auto* val = (ObjUpvalue*) object;
+                markValue(val->closed);
+                break;
+            }
+        }
+    }
+}
+
+void Memory::sweep() {
+    Obj** prevDotNext= &objects;
+    Obj* object = objects;
+    int markedCount = 0;
+    while (object != nullptr) {
+#ifdef DEBUG_LOG_GC
+        printf("%p sweep\n", (void*)object);
+#endif
+        if (object->isMarked) {
+            prevDotNext = &object->next;
+            object = object->next;
+            markedCount++;
+        } else {
+            *prevDotNext = object->next;
+            freeObject(object);
+            object = *prevDotNext;
+        }
+    }
+
+    // TODO!: this sucks. instead just flip the expected flag each iteration
+    //        the constructor will need to know the right initial flag
+    object = objects;
+    while (object != nullptr) {
+        object->isMarked = false;
+        object = object->next;
+        markedCount--;
+    }
+    if (markedCount != 0) {
+        cerr << "markedCount=" << markedCount << endl;
+    }
+}
+
+void Memory::markValue(Value value) {
+    if (IS_OBJ(value)) markObject(AS_OBJ(value));
+}
+
+void Memory::markObject(Obj* object) {
+    if (object == nullptr) return;
+    if (object->isMarked) return;
+#ifdef DEBUG_LOG_GC
+    printf("%p mark ", (void*)object);
+    printValue(OBJ_VAL(object));
+    printf("\n");
+#endif
+
+    object->isMarked = true;
+    grayStack.push_back(object);
 }

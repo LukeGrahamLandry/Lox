@@ -28,9 +28,6 @@ struct Value {
     ValueData as;
 };
 
-#include "object.h"
-#include "list.cc"
-
 
 // c type -> Value
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})

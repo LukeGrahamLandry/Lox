@@ -1,9 +1,10 @@
 #ifndef clox_object_h
 #define clox_object_h
 
+class Memory;
+typedef struct Value Value;
+
 #include "common.h"
-#include "value.h"
-#include "list.cc"
 
 // TODO: Could rewrite as a class but for now i want to make sure i understand how it works without.
 //     : It's cooler to do types without types.
@@ -13,17 +14,19 @@
 #define RAW_OBJ(objSubclassInstancePtr) ((Obj*) objSubclassInstancePtr)
 
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
-#define IS_BYTE_ARRAY(value)       (isObjType(value, OBJ_BYTE_ARRAY))
-#define IS_VALUE_ARRAY(value)       (isObjType(value, OBJ_VALUE_ARRAY))
-#define IS_ARRAY(value)       (IS_STRING(value) || IS_BYTE_ARRAY(value) IS_VALUE_ARRAY(value))
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
 #define IS_CLOSURE(value)     isObjType(value, OBJ_CLOSURE)
 
 #define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      ((char*) ((ObjString*)AS_OBJ(value))->array.contents)
-#define AS_ARRAY(value)   ((ObjArray){VAL_OBJ, {.obj = (Obj*)AS_OBJ()})
 #define AS_CLOSURE(value)       ((ObjClosure*)AS_OBJ(value))
+
+
+#define ALLOCATE(type, length) (type*) reallocate(nullptr, 0, sizeof(type) * length)
+#define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
+#define FREE_ARRAY(type, pointer, count) reallocate(pointer, sizeof(type) * count, 0)
+
 
 typedef enum {
     OBJ_STRING,
@@ -31,12 +34,11 @@ typedef enum {
     OBJ_NATIVE,
     OBJ_CLOSURE,
     OBJ_UPVALUE,
-
-    OBJ_VALUE_ARRAY,
-    OBJ_BYTE_ARRAY
 } ObjType;
 
 typedef struct ObjString ObjString;
+typedef struct Table Table;
+typedef struct Set Set;
 
 struct Obj {
     ObjType type;
@@ -88,6 +90,8 @@ typedef struct {
     ObjString* name;
 } ObjNative;
 
+#include "value.h"
+
 typedef struct ObjUpvalue {
     Obj obj;
     Value* location;
@@ -95,35 +99,14 @@ typedef struct ObjUpvalue {
     Value closed;
 } ObjUpvalue;
 
-typedef struct ObjClosure {
-    Obj obj;
-    ObjFunction* function;
-    ArrayList<ObjUpvalue*> upvalues;
-} ObjClosure;
-
-
 bool isObjType(Value value, ObjType type);
-ObjString* copyString(Set* internedStrings, Obj** objectsHead, const char* chars, int length);
-ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint32_t length);
-ObjString* allocateString(char* chars, uint32_t length, uint32_t hash);
-Obj* allocateObject(size_t size, ObjType type);
 void printObject(Value value, ostream* output);
 void printObject(Value value);
 void printObjectOwnedAddresses(Value value);
 uint32_t hashString(const char* chars, uint32_t length);
 void printObjectsList(Obj* head);
-void freeObject(Obj* object);
-ObjFunction* newFunction();
-ObjClosure* newClosure(ObjFunction* function);
-ObjUpvalue* newUpvalue(Value* function);
 
-ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
-
-inline void freeStringChars(ObjString* string){
-    FREE_ARRAY(char, string->array.contents, string->array.length);
-}
-
-inline void linkObjects(Obj** head, Obj* additional) {
+static void linkObjects(Obj** head, Obj* additional) {
     Obj* end = additional;
     while (end->next != nullptr){
         end = end->next;
@@ -135,6 +118,57 @@ inline void linkObjects(Obj** head, Obj* additional) {
 inline char* asCString(ObjString* str){
     return (char*) str->array.contents;
 }
+
+typedef struct ObjClosure ObjClosure;
+class Table;
+class Set;
+
+class Memory {
+public:
+    // interned strings. prevents allocating separate memory for duplicated identical strings.
+    Set* strings;
+    Table* natives;
+    // a linked list of all Values with heap allocated memory, so we can free them when we terminate.
+    Obj* objects;
+    ObjUpvalue* openUpvalues;
+    vector<Obj*> grayStack;
+    Value stack[STACK_MAX];  // working memory. my equivalent of registers
+    Value* stackTop;  // where the next value will be inserted
+
+    bool enable;
+
+    ObjString* copyString(const char* chars, int length);
+    ObjString* takeString(char* chars, uint32_t length);
+    ObjString* allocateString(char* chars, uint32_t length, uint32_t hash);
+    Obj* allocateObject(size_t size, ObjType type);
+    void freeObject(Obj* object);
+    ObjFunction* newFunction();
+    ObjClosure* newClosure(ObjFunction* function);
+    ObjUpvalue* newUpvalue(Value* function);
+    ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
+    inline void freeStringChars(ObjString* string){
+        FREE_ARRAY(char, string->array.contents, string->array.length);
+    }
+
+    void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+    void* reallocate(void* pointer, size_t oldSize, size_t newSize, bool allowGC);
+    void collectGarbage();
+    void markRoots();
+    void traceReferences();
+    void sweep();
+    void markValue(Value value);
+    void markObject(Obj* object);
+};
+
+
+#include "list.cc"
+#include "table.h"
+
+typedef struct ObjClosure {
+    Obj obj;
+    ObjFunction* function;
+    ArrayList<ObjUpvalue*> upvalues;
+} ObjClosure;
 
 
 #endif

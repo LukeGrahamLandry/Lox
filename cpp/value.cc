@@ -1,4 +1,5 @@
 #include "value.h"
+#include "object.h"
 
 void printValue(Value value, ostream* output){
     switch (value.type) {

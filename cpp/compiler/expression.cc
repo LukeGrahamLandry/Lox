@@ -45,9 +45,8 @@ void Compiler::string(){
 
 Value Compiler::createStringValue(const char* chars, int length){
     // TODO: since it allocates memory here, just exporting the code and constants array to a file will not be enough. you need to write all the data that the objects point to.
-    return OBJ_VAL(copyString(strings, &objects, chars, length));
+    return OBJ_VAL(gc.copyString(chars, length));
 }
-
 
 void Compiler::parsePrecedence(Precedence precedence){
     advance();
@@ -81,7 +80,7 @@ void Compiler::parsePrecedence(Precedence precedence){
         case TOKEN_FUN: {
             if (check(TOKEN_IDENTIFIER)) break;
             std::string n = "lambda:" + to_string(previous.line);
-            ObjString* name = copyString(strings, &objects, n.c_str(), (int) n.length());
+            ObjString* name = gc.copyString(n.c_str(), (int) n.length());
             functionExpression(TYPE_FUNCTION, name);
             break;
         }
@@ -218,7 +217,7 @@ void Compiler::emitConstantAccess(Value value){
     if (IS_BOOL(value)) AS_BOOL(value) ? emitByte(OP_TRUE) : emitByte(OP_FALSE);
     else if (IS_NIL(value)) emitByte(OP_NIL);
     else {
-        const_index_t location = currentChunk()->addConstant(value);
+        const_index_t location = currentChunk()->addConstant(value, gc);
         emitBytes(OP_GET_CONSTANT, location);
     }
 }
@@ -254,7 +253,7 @@ int Compiler::declareLocalVariable(){
         }
     }
 
-    getLocals().push(local);
+    getLocals().push(local, gc);
 
     return (int) getLocals().count - 1;
 }
@@ -287,7 +286,7 @@ bool Compiler::identifiersEqual(Token a, Token b) {
 // returns an index into the constants array for the identifier name as a string
 const_index_t Compiler::identifierConstant(Token name) {
     Value varName = createStringValue(name.start, name.length);
-    return currentChunk()->addConstant(varName);
+    return currentChunk()->addConstant(varName, gc);
 }
 
 void Compiler::namedVariable(Token name, bool canAssign) {
@@ -353,7 +352,7 @@ int Compiler::addUpvalue(TargetFunction& func, uint8_t index, bool isLocal) {
     }
 
     Upvalue val = { index, isLocal };
-    func.upvalues->push(val);
+    func.upvalues->push(val, gc);
     if (func.function->upvalueCount >= 255) {  // TODO
         cerr << "Too many up values. Need bigger index!" << endl;
     }
@@ -395,7 +394,7 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
 
     TargetFunction target = functionStack.pop();
 
-    const_index_t location = currentChunk()->addConstant(OBJ_VAL(func));
+    const_index_t location = currentChunk()->addConstant(OBJ_VAL(func), gc);
     emitBytes(OP_CLOSURE, location);
 
     if (target.upvalues->count != target.function->upvalueCount) {

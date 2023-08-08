@@ -23,10 +23,6 @@ typedef struct {
     Value* slots;
 } CallFrame;
 
-#define FRAMES_MAX 64
-#define STACK_MAX (FRAMES_MAX * 256)
-
-
 class VM {
 public:
     VM();
@@ -55,23 +51,13 @@ public:
     ObjString* produceString(const string& str);
     Value produceFunction(char *src);
 
-    Set strings;
-    Table natives;
-    Obj* objects;
-    ObjUpvalue* openUpvalues;
-
-    ArrayList<Obj*>* grayStack;
+    Memory gc;
 
 //private:  // TODO
     Compiler compiler;
-    Value stack[STACK_MAX];  // working memory. my equivalent of registers
-    Value* stackTop;  // where the next value will be inserted
     CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack
     int frameCount;
 
-    // a linked list of all Values with heap allocated memory, so we can free them when we terminate.
-    // interned strings. prevents allocating separate memory for duplicated identical strings.
-    Table globals;
     Debugger debug;
 
     ostream* out;
@@ -82,11 +68,11 @@ public:
     Value pop();
 
     inline Value peek(int distance) {
-        return stackTop[-1 - distance];
+        return gc.stackTop[-1 - distance];
     }
 
     inline Value peek() {
-        return stackTop[-1];
+        return gc.stackTop[-1];
     }
 
     void runtimeError(const string &message);
@@ -119,7 +105,5 @@ public:
     ObjUpvalue* captureUpvalue(Value* local);
     void closeUpvalues(Value* last);
 };
-
-
 
 #endif

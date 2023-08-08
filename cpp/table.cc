@@ -3,7 +3,7 @@
 #define TABLE_MAX_LOAD 0.75
 #define GROW_CAPACITY(old) (old == 0 ? 8 : old * 2)
 
-Table::Table() {
+Table::Table(Memory& gc) : gc(gc) {
     count = 0;
     capacity = 0;
     entries = nullptr;
@@ -11,7 +11,7 @@ Table::Table() {
 }
 
 Table::~Table() {
-    FREE_ARRAY(Entry, entries, capacity);
+    gc.FREE_ARRAY(Entry, entries, capacity);
     count = 0;
     capacity = 0;
     entries = nullptr;
@@ -55,11 +55,11 @@ bool Table::remove(ObjString *key) {
     if (isEmpty(entry)) return false;
     entry->key = nullptr;
     entry->value = BOOL_VAL(true);
-    return false;
+    return true;
 }
 
 void Table::removeAll(){
-    FREE_ARRAY(Entry, entries, capacity);
+    gc.FREE_ARRAY(Entry, entries, capacity);
     maxEntries = 0;
     count = 0;
     capacity = 0;
@@ -97,7 +97,7 @@ void Table::adjustCapacity() {
     uint32_t oldCapacity = capacity;
     uint32_t newCapacity = GROW_CAPACITY(oldCapacity);
 
-    Entry* newEntries = ALLOCATE(Entry, newCapacity);
+    Entry* newEntries = (Entry*) gc.reallocate(nullptr, 0, sizeof(Entry) * newCapacity);
     // allocate doesn't initialize to 0 so there will just be random garbage there,
     // but we need to be able to check for empty slots safely when inserting.
     for (int i = 0; i < newCapacity; i++) {
@@ -116,7 +116,7 @@ void Table::adjustCapacity() {
         slot->value = original->value;
     }
 
-    FREE_ARRAY(Entry, oldEntries, oldCapacity);
+    gc.FREE_ARRAY(Entry, oldEntries, oldCapacity);
     entries = newEntries;
     capacity = newCapacity;
     count = newCount;
@@ -222,6 +222,11 @@ void Table::removeUnmarkedKeys() {
     for (uint32_t i=0;i<capacity;i++){
         Entry* entry = entries + i;
         if (!isEmpty(entry) && !entry->key->array.obj.isMarked) {
+#ifdef DEBUG_LOG_GC
+            printf("%p table drop ", (void*)entry->key);
+            printValue(OBJ_VAL(entry->key));
+            cout << endl;
+#endif
             remove(entry->key);  // TODO: dont need to re-find the entry
         }
     }

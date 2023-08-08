@@ -18,20 +18,12 @@ int main(int argc, const char* argv[]) {
         repl(&vm);
     } else if (argc == 2){
         script(&vm, argv[1]);
-    } else if (argc == 3 && strcmp(argv[1], "-b") == 0){
-        bytecode(&vm, argv[2]);
     } else if (argc == 3 && strcmp(argv[1], "-s") == 0){
         Debugger::silent = true;
         script(&vm, argv[2]);
     }
 
     return 0;
-}
-
-void bytecode(VM *vm, const char *path) {
-    Chunk* chunk = Chunk::importFromBinary(path);
-    // vm->setChunk(chunk);
-    vm->run();
 }
 
 void script(VM *vm, const char *path) {

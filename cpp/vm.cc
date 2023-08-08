@@ -2,7 +2,7 @@
 #include "compiler/compiler.h"
 #include "common.h"
 #include <cmath>
-#include "lib/natives.cc"
+#include "natives.cc"
 
 #define FORMAT_RUNTIME_ERROR(format, ...)     \
         fprintf(stderr, format, __VA_ARGS__); \
@@ -14,22 +14,19 @@ long VM::instructionTimeTotal[256] = {};
 int VM::instructionCount[256] = {};
 #endif
 
-VM::VM() {
-    grayStack = new ArrayList<Obj*>(false);
+VM::VM() : compiler(Compiler(gc)) {
     evilVmGlobal = this;
     resetStack();
-    objects = nullptr;
-    compiler = Compiler();
-    compiler.natives = &natives;
-    compiler.strings = &strings;
-    globals = Table();
-    strings = Set();
+    gc.objects = nullptr;
+    gc.natives = new Table(gc);
+    gc.strings = new Set(gc);
     frameCount = 0;
 
     out = &cout;
     err = &cerr;
     exitCode = 0;
-    openUpvalues = nullptr;
+    gc.openUpvalues = nullptr;
+    gc.enable = false;
 
     defineNative("clock", LoxNatives::klock, 0);
     defineNative("time", LoxNatives::time, 0);
@@ -40,11 +37,10 @@ VM::VM() {
 VM::~VM() {
     freeObjects();
     evilVmGlobal = nullptr;
-    delete grayStack;
 }
 
 void VM::resetStack(){
-    stackTop = stack;
+    gc.stackTop = gc.stack;
 }
 
 InterpretResult VM::interpret(char* src) {
@@ -53,18 +49,14 @@ InterpretResult VM::interpret(char* src) {
 }
 
 bool VM::loadFromSource(char* src) {
+    gc.enable = false;
     ObjFunction* function = compiler.compile(src);
     if (function == nullptr) return false;
-    if (compiler.objects != nullptr){
-        linkObjects(&objects, compiler.objects);
-        compiler.objects = nullptr;
-    }
 
     push(OBJ_VAL(function));
-    ObjClosure* closure = newClosure(function);
+    ObjClosure* closure = gc.newClosure(function);
     pop();
     push(OBJ_VAL(closure));
-    linkObjects(&objects, (Obj*) closure);
     if (function->upvalueCount != 0) {
         cerr << "ICE. Script has upvalues." << endl;
     }
@@ -72,16 +64,13 @@ bool VM::loadFromSource(char* src) {
     // this doesn't actually run it, just sets it as the current frame on the call stack
     call(closure, 0);
 
+    gc.enable = true;
     return true;
 }
 
 Value VM::produceFunction(char* src) {
     ObjFunction* function = compiler.compile(src);
     if (function == nullptr) return NIL_VAL();
-    if (compiler.objects != nullptr){
-        linkObjects(&objects, compiler.objects);
-        compiler.objects = nullptr;
-    }
     return OBJ_VAL(function);
 }
 
@@ -93,17 +82,17 @@ inline void VM::push(Value value){
     }
     #endif
 
-    *stackTop = value;
-    stackTop++;
+    *gc.stackTop = value;
+    gc.stackTop++;
 }
 
 inline Value VM::pop(){
-    stackTop--;
-    return *stackTop;
+    gc.stackTop--;
+    return *gc.stackTop;
 }
 
 inline int VM::stackHeight(){
-    return (int) (stackTop - stack);
+    return (int) (gc.stackTop - gc.stack);
 }
 
 InterpretResult VM::run() {
@@ -123,8 +112,8 @@ InterpretResult VM::run() {
     #ifdef VM_SAFE_MODE
     // enough stack entries for: for (int i=0;i<count;i++)(pop());
     #define ASSERT_POP(count)                                \
-                if (count > (int) (stackTop - STACK_BASE())){ \
-                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack frame of size %d.", count, (int) (stackTop - frame.slots)) \
+                if (count > (int) (gc.stackTop - STACK_BASE())){ \
+                    FORMAT_RUNTIME_ERROR("Cannot pop %d from stack frame of size %d.", count, (int) (gc.stackTop - frame.slots)) \
                     return INTERPRET_RUNTIME_ERROR;          \
                 }
     // enough stack entries for: frame.slots[offset]
@@ -162,8 +151,8 @@ InterpretResult VM::run() {
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
         if (!Debugger::silent) {
-            cout << frame.slots - stack;
-            printValueArray(stack, stackTop);
+            cout << frame.slots - gc.stack;
+            printValueArray(gc.stack, gc.stackTop);
         }
 
         int instructionOffset = (int) (ip - frame.closure->function->chunk->getCodePtr());
@@ -287,7 +276,7 @@ InterpretResult VM::run() {
                 }
 
                 closeUpvalues(frame.slots);  // Check if any locals we're about to pop need to be promoted to upvalues.
-                stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function getLocals.
+                gc.stackTop = frame.slots;  // move the stack back to the first slot. pops the value that was called, any args passed and any function getLocals.
                 CACHE_FRAME()  // point the ip back to the caller's code
                 push(value);  // put the return value back on the stack
                 break;
@@ -296,24 +285,23 @@ InterpretResult VM::run() {
                 ASSERT_POP(1)
                 ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
                 push(OBJ_VAL(function));  // for gc
-                ObjClosure* closure = newClosure(function);
+                ObjClosure* closure = gc.newClosure(function);
                 pop();
                 push(OBJ_VAL(closure));
-                linkObjects(&objects, (Obj*) closure);
 
                 for (int i=0;i<function->upvalueCount;i++) {
                     uint8_t isLocal = READ_BYTE();
                     uint8_t index = READ_BYTE();
                     if (isLocal) {
-                        closure->upvalues.push(captureUpvalue(frame.slots + index));
+                        closure->upvalues.push(captureUpvalue(frame.slots + index), gc);
                     } else {
-                        closure->upvalues.push(frame.closure->upvalues[index]);
+                        closure->upvalues.push(frame.closure->upvalues[index], gc);
                     }
                 }
                 break;
             }
             case OP_CLOSE_UPVALUE: {
-                closeUpvalues(stackTop - 1);
+                closeUpvalues(gc.stackTop - 1);
                 pop();
                 break;
             }
@@ -349,7 +337,7 @@ InterpretResult VM::run() {
             case OP_POP_MANY: {
                 int count = READ_BYTE();
                 ASSERT_POP(count)
-                stackTop -= count;
+                gc.stackTop -= count;
                 break;
             }
             case OP_JUMP_IF_FALSE: {
@@ -419,7 +407,7 @@ ObjUpvalue* VM::captureUpvalue(Value* local){
 #endif
 
     ObjUpvalue* prev = nullptr;
-    ObjUpvalue* val = openUpvalues;
+    ObjUpvalue* val = gc.openUpvalues;
     while (val != nullptr && val->location > local) {
         prev = val;
         val = val->next;
@@ -429,10 +417,10 @@ ObjUpvalue* VM::captureUpvalue(Value* local){
         return val;
     }
 
-    ObjUpvalue* newVal = newUpvalue(local);
+    ObjUpvalue* newVal = gc.newUpvalue(local);
     newVal->next = val;
     if (prev == nullptr) {
-        openUpvalues = newVal;
+        gc.openUpvalues = newVal;
     } else {
         prev->next = newVal;
     }
@@ -442,16 +430,16 @@ ObjUpvalue* VM::captureUpvalue(Value* local){
 void VM::closeUpvalues(Value* last) {
     // The locations point to the stack so the pointer order is meaningful.
     // Go along open upvalues until you hit on earlier in the stack than <last>.
-    while (openUpvalues != nullptr && openUpvalues->location >= last) {
+    while (gc.openUpvalues != nullptr && gc.openUpvalues->location >= last) {
 #ifdef VM_DEBUG_TRACE_EXECUTION
         cout << "[Close] ";
-        printValue(*openUpvalues->location);
+        printValue(*gc.openUpvalues->location);
         cout << endl;
 #endif
         // Steak the value and point to yourself instead of the stack.
-        openUpvalues->closed = *openUpvalues->location;
-        openUpvalues->location = &openUpvalues->closed;
-        openUpvalues = openUpvalues->next;
+        gc.openUpvalues->closed = *gc.openUpvalues->location;
+        gc.openUpvalues->location = &gc.openUpvalues->closed;
+        gc.openUpvalues = gc.openUpvalues->next;
     }
 }
 
@@ -486,22 +474,22 @@ void VM::concatenate(){
     ObjString* a = AS_STRING(peek(1));   // gc
 
     uint32_t length = a->array.length-1 + b->array.length-1;
-    char* chars = ALLOCATE(char, length + 1);
+    char* chars = (char*) gc.reallocate(nullptr, 0, sizeof(char) * (length+1));
     memcpy(chars, a->array.contents, a->array.length - 1);
     memcpy(chars + a->array.length - 1, b->array.contents, b->array.length - 1);
     chars[length] = '\0';
 
-    ObjString* result = takeString(&strings, &objects, chars, length);
+    ObjString* result = gc.takeString(chars, length);
     pop();
     pop();
     push(OBJ_VAL(result));
 }
 
 void VM::freeObjects(){
-    Obj* object = objects;
+    Obj* object = gc.objects;
     while (object != nullptr) {
         Obj* next = object->next;
-        freeObject(object);
+        gc.freeObject(object);
         object = next;
     }
 }
@@ -511,11 +499,13 @@ void VM::printDebugInfo() {
     cout << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
     cout << "Allocated Heap Objects:" << endl;
-    printObjectsList(objects);
+    printObjectsList(gc.objects);
     cout << "Current Stack:" << endl;
-    printValueArray(stack, stackTop - 1);
+    printValueArray(gc.stack, gc.stackTop);
     cout << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
     printStackTrace(&cout);
+    cout << "Strings:" << endl;
+    gc.strings->printContents();
 }
 
 void VM::loadInlineConstant(){
@@ -527,7 +517,7 @@ void VM::loadInlineConstant(){
             assert(sizeof(value) == 8);
             memcpy(&value, ip, sizeof(value));
             ip += sizeof(value);
-            currentChunk()->rawAddConstant(NUMBER_VAL(value));
+            currentChunk()->rawAddConstant(NUMBER_VAL(value), gc);
             break;
         }
         case (1 + OBJ_STRING): {
@@ -535,23 +525,23 @@ void VM::loadInlineConstant(){
             assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
-            ObjString* str = copyString(&strings, &objects, (char*) ip, length-1);
-            currentChunk()->rawAddConstant(OBJ_VAL(str));
+            ObjString* str = gc.copyString((char*) ip, length-1);
+            currentChunk()->rawAddConstant(OBJ_VAL(str), gc);
             ip += length;
             break;
         }
         case (1 + OBJ_FUNCTION): {
-            ObjFunction* func = newFunction();
+            ObjFunction* func = gc.newFunction();
             func->arity = *ip;
             ip++;
             uint32_t length;
             assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
-            func->chunk->code->appendMemory(ip, length);
+            func->chunk->code->appendMemory(ip, length, gc);
             // TODO: pre-load the chunk constants. currently calling it a second time will double all the constants, etc
             ip += length;
-            currentChunk()->rawAddConstant(OBJ_VAL(func));
+            currentChunk()->rawAddConstant(OBJ_VAL(func), gc);
             break;
         }
         default:
@@ -568,7 +558,7 @@ bool VM::accessSequenceIndex(Value array, int index, Value* result){
             FORMAT_RUNTIME_ERROR("Index '%d' out of bounds for string '%s'.", index, AS_CSTRING(array));
             return INTERPRET_RUNTIME_ERROR;
         }
-        *result = OBJ_VAL(copyString(&strings, &objects, AS_CSTRING(array) + realIndex, 1));
+        *result = OBJ_VAL(gc.copyString(AS_CSTRING(array) + realIndex, 1));
         return true;
     } else {
         runtimeError("Unrecognised sequence type");
@@ -594,7 +584,7 @@ bool VM::accessSequenceSlice(Value array, int startIndex, int endIndex, Value* r
             return INTERPRET_RUNTIME_ERROR;
         }
 
-        ObjString* newString = copyString(&strings, &objects, AS_CSTRING(array) + realStartIndex, (int) (realEndIndex - realStartIndex));
+        ObjString* newString = gc.copyString(AS_CSTRING(array) + realStartIndex, (int) (realEndIndex - realStartIndex));
         *result = OBJ_VAL(newString);
         return true;
     } else {
@@ -646,8 +636,8 @@ bool VM::callValue(Value value, int argCount) {
                         FORMAT_RUNTIME_ERROR("Function call requires %d arguments, cannot pass %d.", func->arity, argCount);
                         return false;
                     }
-                    Value result = func->function(this, stackTop - argCount);
-                    stackTop -= argCount + 1;  // +1 for the object being called
+                    Value result = func->function(this, gc.stackTop - argCount);
+                    gc.stackTop -= argCount + 1;  // +1 for the object being called
                     push(result);
                     frames[frameCount - 1].ip = ip;
                     return true;
@@ -679,20 +669,19 @@ bool VM::call(ObjClosure* closure, int argCount){
     if (frameCount > 0) frames[frameCount - 1].ip = ip;
     frames[frameCount].closure = closure;
     frames[frameCount].ip = function->chunk->getCodePtr();
-    frames[frameCount].slots = stackTop - argCount - 1;
+    frames[frameCount].slots = gc.stackTop - argCount - 1;
     frameCount++;
     return true;
 }
 
 ObjString *VM::produceString(const string& str) {
-    return copyString(&strings, &objects, str.c_str(), (int) str.length());
+    return gc.copyString(str.c_str(), (int) str.length());
 }
-
 
 void VM::defineNative(const string& name, NativeFn function, int arity) {
     push(OBJ_VAL(produceString(name)));
-    push(OBJ_VAL(newNative(function, arity, AS_STRING(stack[0]))));
-    natives.set(AS_STRING(stack[0]), stack[1]);
+    push(OBJ_VAL(gc.newNative(function, arity, AS_STRING(gc.stack[0]))));
+    gc.natives->set(AS_STRING(peek(1)), peek(0));
     pop();
     pop();
 }

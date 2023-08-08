@@ -64,14 +64,12 @@ typedef struct {
 
 class Compiler {
 public:
-    Compiler();
+    Compiler(Memory& gc);
     ~Compiler();
 
     ObjFunction* compile(char *src);
 
-    Obj* objects;
-    Set* strings;
-    Table* natives;
+    Memory& gc;
 //private:
     Token current;
     Token previous;

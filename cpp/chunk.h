@@ -53,23 +53,20 @@ class Chunk {
         Chunk();
         ~Chunk();
         Chunk(const Chunk& other);
-        Chunk(ArrayList<byte>* exportedBinaryData);
-        void write(byte b, int line);
+        void release(Memory& gc);
+        void write(byte b, int line, Memory& gc);
         int getLineNumber(int tokenIndex);
-        const_index_t addConstant(Value value);
-        void rawAddConstant(Value value);
+        const_index_t addConstant(Value value, Memory& gc);
+        void rawAddConstant(Value value, Memory& gc);
         int getCodeSize();
         unsigned char* getCodePtr();
         void printConstantsArray();
         Value getConstant(int index);
         unsigned char getInstruction(int offset);
         int popInstruction();
-        ArrayList<byte>* exportAsBinary();
-        void exportAsBinary(const char* path);
         int getConstantsSize();
         void setCodeAt(int index, byte value);
 
-        static Chunk* importFromBinary(const char* path);
         static string opcodeNames[256];
 
         // TODO: why are these lists on the heap
@@ -78,9 +75,7 @@ private:
     ArrayList<int>* lines;
     ArrayList<Value>* constants;
 
-    uint32_t getExportSize();
-
-    void setDone();
+    void setDone(Memory& gc);
 };
 
 void appendAsBytes(ArrayList<byte>* data, uint32_t number);

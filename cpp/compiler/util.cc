@@ -27,9 +27,9 @@ void Compiler::synchronize() {
 
 void Compiler::emitByte(byte b){
     if (bufferStack.count == 0){
-        currentChunk()->write(b, current.line);
+        currentChunk()->write(b, current.line, gc);
     } else {
-        bufferStack.peekLast()->push(b);
+        bufferStack.peekLast()->push(b, gc);
     }
 }
 
@@ -98,7 +98,7 @@ void Compiler::writeShort(int offset, uint16_t v){
 
 ArrayList<byte>* Compiler::pushBuffer(){
     ArrayList<byte>* buffer = new ArrayList<byte>();
-    bufferStack.push(buffer);
+    bufferStack.push(buffer, gc);
     return buffer;
 }
 
@@ -112,7 +112,7 @@ void Compiler::flushBuffer(ArrayList<byte>*& buffer){
     for (int i=0;i<buffer->count;i++){
         emitByte((*buffer)[i]);
     }
-
+    buffer->release(gc);
     delete buffer;
     buffer = nullptr;
 }

@@ -1,7 +1,9 @@
 #ifndef clox_list_h
 #define clox_list_h
 
-#include "memory.h"
+#include "common.h"
+
+class Memory;
 
 template <typename T>
     class ArrayList {
@@ -9,23 +11,24 @@ template <typename T>
             ArrayList();
             explicit ArrayList(bool canGc);
             explicit ArrayList(uint32_t size);
-            ArrayList(T* source, uint length);
+            ArrayList(T* source, uint length, Memory& gc);
             ArrayList(const ArrayList& other);
             ~ArrayList();
-            void push(T value);
+            void release(Memory& gc);
+            void push(T value, Memory& gc);
             void set(uint index, T value);
             bool isEmpty();
             T pop();
             void popMany(int count);
             T& peek(uint indexFromFront);
             T& peekLast();
-            void grow(uint delta);
-            void growExact(uint delta);
-            void appendMemory(T* source, uint length);
-            void append(const ArrayList<T>& source);
-            ArrayList<T> copy();
+            void grow(uint delta, Memory& gc);
+            void growExact(uint delta, Memory& gc);
+            void appendMemory(T* source, uint length, Memory& gc);
+            void append(const ArrayList<T>& source, Memory& gc);
+            ArrayList<T> copy(Memory& gc);
             T remove(uint index);
-            void shrink();
+            void shrink(Memory& gc);
             T& operator[](size_t index);
 
             T* data;
@@ -41,6 +44,8 @@ template <typename T>
             count = 0;
         }
     };
+
+#include "object.h"
 
 // Useful if what you really want is a nice interface over a fixed size array.
 template<typename T>
@@ -89,9 +94,9 @@ T ArrayList<T>::remove(uint index) {
 }
 
 template<typename T>
-ArrayList<T>::ArrayList(T* source, uint32_t length) {
+ArrayList<T>::ArrayList(T* source, uint32_t length, Memory& gc) {
     capacity = length;
-    data = (T*) reallocate(data, 0, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, 0, sizeof(T) * capacity, canGC);
     memcpy(data, source, sizeof(T) * length);
     count = length;
 }
@@ -120,11 +125,11 @@ inline bool ArrayList<T>::isEmpty() {
 // Ensure there's space for at least <delta> new entries, resize if not.
 // Still resizes by at least <capacity> to keep the amortized constant time push().
 template<typename T>
-void ArrayList<T>::grow(uint32_t delta) {
+void ArrayList<T>::grow(uint32_t delta, Memory& gc) {
     if (capacity >= count + delta) return;
     int oldCapacity = capacity;
     capacity += capacity > delta ? (isEmpty() ? 8 : capacity) : delta;
-    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
 }
 
 // Removes wasted space.
@@ -132,8 +137,8 @@ void ArrayList<T>::grow(uint32_t delta) {
 // I think it doesn't even need to copy everything,
 // because realloc should just be able to shrink the memory block from the end instead of making a new one.
 template<typename T>
-void ArrayList<T>::shrink() {
-    data = (T*) reallocate(data, sizeof(T) * capacity, sizeof(T) * count, canGC);
+void ArrayList<T>::shrink(Memory& gc) {
+    data = (T*) gc.reallocate(data, sizeof(T) * capacity, sizeof(T) * count, canGC);
     capacity = count;
 }
 
@@ -143,11 +148,11 @@ void ArrayList<T>::shrink() {
 // Normal grow has much better time performance for unknown sizes.
 // Using growExact() once on an empty list makes it just a nicer interface to a normal fixed size array.
 template<typename T>
-void ArrayList<T>::growExact(uint delta) {
+void ArrayList<T>::growExact(uint delta, Memory& gc) {
     if (capacity > count + delta) return;
     int oldCapacity = capacity;
     capacity = count + delta;
-    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
 }
 
 template<typename T>
@@ -174,15 +179,23 @@ ArrayList<T>::ArrayList(bool canGC){
 
 template <typename T>
 ArrayList<T>::~ArrayList(){
-    reallocate(data, sizeof(T) * capacity, 0, canGC);
+    if (capacity > 0) {
+        cout << "Leaked list!\n";
+    }
     data = 0;  // crash if access
-    capacity = 12345;
-    count = 6789;
 }
 
 template <typename T>
-void ArrayList<T>::push(T value){
-    grow(1);
+void ArrayList<T>::release(Memory& gc){
+    gc.reallocate(data, sizeof(T) * capacity, 0, canGC);
+    data = 0;
+    capacity = 0;
+    count = 0;
+}
+
+template <typename T>
+void ArrayList<T>::push(T value, Memory& gc){
+    grow(1, gc);
     data[count] = value;
     count++;
 }
@@ -211,23 +224,22 @@ ArrayList<T>::ArrayList(const ArrayList &other) {
 
 // Performs a deep copy so the new one owns its memory.
 template<typename T>
-ArrayList<T> ArrayList<T>::copy() {
+ArrayList<T> ArrayList<T>::copy(Memory& gc) {
     ArrayList<T> other;
-    other.append(this);
+    other.append(this, gc);
     return other;
 }
 
 template<typename T>
-void ArrayList<T>::appendMemory(T* source, uint32_t length) {
-    grow(length);
+void ArrayList<T>::appendMemory(T* source, uint32_t length, Memory& gc) {
+    grow(length, gc);
     memcpy(&data[count * sizeof(T)], source, sizeof(T) * length);
     count += length;
 }
 
 template<typename T>
-void ArrayList<T>::append(const ArrayList<T>& source) {
-    appendMemory(source.data, source.count);
+void ArrayList<T>::append(const ArrayList<T>& source, Memory& gc) {
+    appendMemory(source.data, source.count, gc);
 }
-
 
 #endif

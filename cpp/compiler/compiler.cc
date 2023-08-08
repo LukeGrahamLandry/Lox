@@ -1,21 +1,24 @@
 #include "compiler.h"
-#include "../memory.h"
 
-Compiler::Compiler(){
+Compiler::Compiler(Memory& gc) : gc(gc) {
     hadError = false;
     panicMode = false;
-    objects = nullptr;
     evilCompilerGlobal = this;
+
 };
 
 Compiler::~Compiler(){
+    loopStack.release(gc);
+    functionStack.release(gc);
     if (bufferStack.count > 0){
         cerr << "Compiler had " << bufferStack.count << " unterminated bufferStack." << endl;
         for (int i=0; i < bufferStack.count; i++){
+            bufferStack[i]->release(gc);
             delete bufferStack[i];
         }
     }
-    evilCompilerGlobal = nullptr;
+    bufferStack.release(gc);
+
 };
 
 void Compiler::pushFunction(FunctionType currentFunctionType){
@@ -24,10 +27,8 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     func.upvalues = new ArrayList<Upvalue>();
     func.type = currentFunctionType;
     func.function = NULL;
-    func.function = newFunction();
+    func.function = gc.newFunction();
     func.scopeDepth = 0;
-
-    linkObjects(&objects, RAW_OBJ(func.function));
 
     Local local;
     local.depth = 0;
@@ -36,14 +37,16 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     local.assignments = 0;
     local.isFinal = false;
     local.isCaptured = false;
-    func.variableStack->push(local);
+    func.variableStack->push(local, gc);
 
-    functionStack.push(func);
+    functionStack.push(func, gc);
 }
 
 // TODO: get rid of this cause i dont always call it
 ObjFunction *Compiler::popFunction() {
     TargetFunction func = functionStack.pop();
+    func.variableStack->release(gc);
+    func.upvalues->release(gc);
     delete func.variableStack;
     delete func.upvalues;
     return func.function;
@@ -96,10 +99,10 @@ void Compiler::declaration(){
             while (check(TOKEN_IDENTIFIER)){
                 parseLocalVariable("Expect identifier after 'import'.");
                 defineLocalVariable();
-                ObjString* name = copyString(strings, &objects, previous.start, previous.length);
+                ObjString* name = gc.copyString(previous.start, previous.length);
                 Value value;
 
-                if (natives->get(name, &value)){
+                if (gc.natives->get(name, &value)){
                     emitConstantAccess(value);
                 } else {
                     errorAt(previous, "Invalid import");
@@ -146,7 +149,7 @@ void Compiler::funDeclaration(){
     parseLocalVariable("Expect function name.");
     defineLocalVariable();
 
-    ObjString* name = copyString(strings, &objects, previous.start, previous.length);
+    ObjString* name = gc.copyString(previous.start, previous.length);
     functionExpression(TYPE_FUNCTION, name);
 }
 
@@ -281,6 +284,6 @@ void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkI
 
 void Compiler::markRoots() {
     for (int i=0;i<functionStack.count;i++) {
-        markObject((Obj*) functionStack[i].function);
+        gc.markObject((Obj*) functionStack[i].function);
     }
 }

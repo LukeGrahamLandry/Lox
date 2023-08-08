@@ -13,10 +13,10 @@ void Compiler::breakOrContinueStatement(TokenType type){
     int location = emitJumpUnconditionally();
     switch (type) {
         case TOKEN_BREAK:
-            (*ctx).breakStatementPositions.push(location);
+            (*ctx).breakStatementPositions.push(location, gc);
             break;
         case TOKEN_CONTINUE:
-            (*ctx).continueStatementPositions.push(location);
+            (*ctx).continueStatementPositions.push(location, gc);
             break;
     }
 }
@@ -117,7 +117,7 @@ void Compiler::pushActiveLoop(){
     LoopContext* ctx = new LoopContext;
     ctx->startingScopeDepth = scopeDepth();
     ctx->continueTargetPosition = 0;
-    loopStack.push(ctx);
+    loopStack.push(ctx, gc);
 }
 
 // Call at the location 'continue' should return to.

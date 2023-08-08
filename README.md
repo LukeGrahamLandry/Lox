@@ -4,7 +4,6 @@ Several implementations of Lox, the language described in [Crafting Interpreters
 
 - jlox implemented in python
 - clox implemented in c++
-- compiling lox to java bytecode
 
 Some additional features are added, see the respective READMEs for details. 
 

@@ -14,13 +14,15 @@ typedef struct {
 
 class Table {
 public:
-    Table();
+    Table(Memory& gc);
     ~Table();
 
     uint32_t count;
     uint32_t capacity;
     Entry* entries;
     uint32_t maxEntries;
+
+    Memory& gc;
 
     bool set(ObjString* key, Value value);
     void adjustCapacity();
@@ -36,13 +38,13 @@ public:
     bool safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry);
     void removeUnmarkedKeys();
 
-protected:
-    // TODO: why is this static?
-    static Entry* findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key);
-
     static inline bool isEmpty(Entry* entry){
         return entry->key == nullptr;
     }
+
+protected:
+    // TODO: why is this static?
+    static Entry* findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key);
 
     // The key is a pointer to the object, we don't own the object's memory, so just discarding our reference to it is fine.
     // The value is an actual instance of the struct since they're always passed by value. If it's not an Obj, discarding it doesn't matter.
@@ -60,6 +62,9 @@ protected:
 
 class Set : public Table {
 public:
+    Set(Memory& gc): Table(gc) {
+
+    }
     bool add(ObjString* key);
 };
 
