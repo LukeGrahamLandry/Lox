@@ -1,9 +1,11 @@
 #include "compiler.h"
+#include "../memory.h"
 
 Compiler::Compiler(){
     hadError = false;
     panicMode = false;
     objects = nullptr;
+    evilCompilerGlobal = this;
 };
 
 Compiler::~Compiler(){
@@ -13,6 +15,7 @@ Compiler::~Compiler(){
             delete bufferStack[i];
         }
     }
+    evilCompilerGlobal = nullptr;
 };
 
 void Compiler::pushFunction(FunctionType currentFunctionType){
@@ -274,4 +277,10 @@ void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkI
         }
     }
     emitBytes(emitInstruction, argument);
+}
+
+void Compiler::markRoots() {
+    for (int i=0;i<functionStack.count;i++) {
+        markObject((Obj*) functionStack[i].function);
+    }
 }

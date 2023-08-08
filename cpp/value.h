@@ -2,7 +2,6 @@
 #define clox_value_h
 
 #include "common.h"
-#include "list.cc"
 
 
 typedef enum {
@@ -30,6 +29,7 @@ struct Value {
 };
 
 #include "object.h"
+#include "list.cc"
 
 
 // c type -> Value

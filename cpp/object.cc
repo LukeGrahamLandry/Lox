@@ -53,9 +53,12 @@ ObjString* takeString(Set* internedStrings, Obj** objectsHead, char* chars, uint
         str = slot->key;
         FREE_ARRAY(char, chars,  length + 1);  // + 1 for null terminator
     } else {
+        VM* vm = (VM*) evilVmGlobal;
         str = allocateString(chars, length, hash);
+        vm->push(OBJ_VAL(str));
         internedStrings->setEntry(slot, str, NIL_VAL());
         linkObjects(objectsHead, RAW_OBJ(str));
+        vm->pop();
     }
 
     return str;
@@ -73,11 +76,17 @@ ObjString* allocateString(char* chars, uint32_t length, uint32_t hash) {
 Obj* allocateObject(size_t size, ObjType type) {
     Obj* object = RAW_OBJ(reallocate(nullptr, 0, size));
     object->type = type;
-
+    object->isMarked = false;
+#ifdef DEBUG_LOG_GC
+    printf("%p allocate %zu for %d\n", (void*)object, size, type);
+#endif
     return object;
 }
 
 void freeObject(Obj* object){
+#ifdef DEBUG_LOG_GC
+    printf("%p free type %d\n", (void*)object, object->type);
+#endif
     switch (object->type) {
         case OBJ_STRING: {
             // We own the char array.
@@ -139,7 +148,7 @@ void printObject(Value value, ostream* output){
             break;
         }
         case OBJ_UPVALUE:
-            *output << "upvalue?";
+            *output << "<upvalue>";
             break;
         default:
             *output << "Untagged Obj " << AS_OBJ(value);

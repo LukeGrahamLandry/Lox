@@ -8,6 +8,9 @@ void script(VM *vm, const char *path);
 void bytecode(VM *vm, const char *path);
 void repl(VM *vm);
 
+void* evilVmGlobal = nullptr;
+void* evilCompilerGlobal = nullptr;
+
 int main(int argc, const char* argv[]) {
     VM vm;
 

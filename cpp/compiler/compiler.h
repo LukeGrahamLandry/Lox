@@ -72,7 +72,7 @@ public:
     Obj* objects;
     Set* strings;
     Table* natives;
-private:
+//private:
     Token current;
     Token previous;
     bool hadError;
@@ -181,6 +181,8 @@ private:
     }
 
     int argumentList();
+
+    void markRoots();
 };
 
 

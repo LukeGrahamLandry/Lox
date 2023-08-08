@@ -6,6 +6,9 @@
 void runOutputTest(const char* name, const char* code, const char* expectedOutput);
 string read(const char* path);
 
+void* evilVmGlobal = nullptr;
+void* evilCompilerGlobal = nullptr;
+
 // TODO: copy paste
 char* readFile(const char* path) {
     FILE* file = fopen(path, "rb");
@@ -47,8 +50,6 @@ int main() {
             readFile("../tests/case/strings.lox"),
             "h\no\nhe\nllo\nhello\nell\nell\ntrue\n"
     );
-
-
 
     runOutputTest("functions", readFile("../tests/case/functions.lox"), "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n");
 

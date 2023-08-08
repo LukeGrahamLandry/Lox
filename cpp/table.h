@@ -34,6 +34,7 @@ public:
     void removeAll();
     void printContents() const;
     bool safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry);
+    void removeUnmarkedKeys();
 
 protected:
     // TODO: why is this static?

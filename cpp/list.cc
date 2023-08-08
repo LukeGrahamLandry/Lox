@@ -7,7 +7,8 @@ template <typename T>
     class ArrayList {
         public:
             ArrayList();
-            ArrayList(uint32_t size);
+            explicit ArrayList(bool canGc);
+            explicit ArrayList(uint32_t size);
             ArrayList(T* source, uint length);
             ArrayList(const ArrayList& other);
             ~ArrayList();
@@ -30,6 +31,7 @@ template <typename T>
             T* data;
             uint32_t count;
             uint32_t capacity;
+            bool canGC;
 
         int size() {
             return count;
@@ -89,7 +91,7 @@ T ArrayList<T>::remove(uint index) {
 template<typename T>
 ArrayList<T>::ArrayList(T* source, uint32_t length) {
     capacity = length;
-    data = (T*) reallocate(data, 0, sizeof(T) * capacity);
+    data = (T*) reallocate(data, 0, sizeof(T) * capacity, canGC);
     memcpy(data, source, sizeof(T) * length);
     count = length;
 }
@@ -122,7 +124,7 @@ void ArrayList<T>::grow(uint32_t delta) {
     if (capacity >= count + delta) return;
     int oldCapacity = capacity;
     capacity += capacity > delta ? (isEmpty() ? 8 : capacity) : delta;
-    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity);
+    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
 }
 
 // Removes wasted space.
@@ -131,7 +133,7 @@ void ArrayList<T>::grow(uint32_t delta) {
 // because realloc should just be able to shrink the memory block from the end instead of making a new one.
 template<typename T>
 void ArrayList<T>::shrink() {
-    data = (T*) reallocate(data, sizeof(T) * capacity, sizeof(T) * count);
+    data = (T*) reallocate(data, sizeof(T) * capacity, sizeof(T) * count, canGC);
     capacity = count;
 }
 
@@ -145,7 +147,7 @@ void ArrayList<T>::growExact(uint delta) {
     if (capacity > count + delta) return;
     int oldCapacity = capacity;
     capacity = count + delta;
-    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity);
+    data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
 }
 
 template<typename T>
@@ -160,15 +162,19 @@ void ArrayList<T>::set(uint32_t index, T value) {
 }
 
 template <typename T>
-ArrayList<T>::ArrayList(){
+ArrayList<T>::ArrayList() : ArrayList(false){}
+
+template <typename T>
+ArrayList<T>::ArrayList(bool canGC){
     data = nullptr;
     count = 0;
     capacity = 0;
+    this->canGC = canGC;
 }
 
 template <typename T>
 ArrayList<T>::~ArrayList(){
-    reallocate(data, sizeof(T) * capacity, 0);
+    reallocate(data, sizeof(T) * capacity, 0, canGC);
     data = 0;  // crash if access
     capacity = 12345;
     count = 6789;
@@ -222,5 +228,6 @@ template<typename T>
 void ArrayList<T>::append(const ArrayList<T>& source) {
     appendMemory(source.data, source.count);
 }
+
 
 #endif

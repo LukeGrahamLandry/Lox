@@ -217,3 +217,12 @@ void Table::printContents() const {
         }
     }
 }
+
+void Table::removeUnmarkedKeys() {
+    for (uint32_t i=0;i<capacity;i++){
+        Entry* entry = entries + i;
+        if (!isEmpty(entry) && !entry->key->array.obj.isMarked) {
+            remove(entry->key);  // TODO: dont need to re-find the entry
+        }
+    }
+}

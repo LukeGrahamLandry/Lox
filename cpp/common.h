@@ -12,8 +12,13 @@ using namespace std;
 #define VM_ALLOW_DEBUG_BREAK_POINT
 #define VM_SAFE_MODE
 #define VM_PROFILING
+#define DEBUG_STRESS_GC
+#define DEBUG_LOG_GC
 
 #define byte uint8_t
 #define cast(targetType, v) (reinterpret_cast<targetType>(v))
+
+extern void* evilVmGlobal;
+extern void* evilCompilerGlobal;
 
 #endif

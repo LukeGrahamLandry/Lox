@@ -10,5 +10,14 @@
 #define FREE_ARRAY(type, pointer, count) reallocate(pointer, sizeof(type) * count, 0)
 
 void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+void* reallocate(void* pointer, size_t oldSize, size_t newSize, bool allowGC);
+void collectGarbage();
+void markRoots();
+
+typedef struct Value Value;
+typedef struct Obj Obj;
+
+void markValue(Value value);
+void markObject(Obj* object);
 
 #endif

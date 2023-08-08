@@ -41,7 +41,6 @@ public:
 
     InterpretResult run();
 
-
     void setOutput(ostream* target){
         out = target;
         err = target;
@@ -60,7 +59,10 @@ public:
     Table natives;
     Obj* objects;
     ObjUpvalue* openUpvalues;
-private:
+
+    ArrayList<Obj*>* grayStack;
+
+//private:  // TODO
     Compiler compiler;
     Value stack[STACK_MAX];  // working memory. my equivalent of registers
     Value* stackTop;  // where the next value will be inserted

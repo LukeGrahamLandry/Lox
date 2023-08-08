@@ -15,6 +15,8 @@ int VM::instructionCount[256] = {};
 #endif
 
 VM::VM() {
+    grayStack = new ArrayList<Obj*>(false);
+    evilVmGlobal = this;
     resetStack();
     objects = nullptr;
     compiler = Compiler();
@@ -37,6 +39,8 @@ VM::VM() {
 
 VM::~VM() {
     freeObjects();
+    evilVmGlobal = nullptr;
+    delete grayStack;
 }
 
 void VM::resetStack(){
@@ -60,6 +64,7 @@ bool VM::loadFromSource(char* src) {
     ObjClosure* closure = newClosure(function);
     pop();
     push(OBJ_VAL(closure));
+    linkObjects(&objects, (Obj*) closure);
     if (function->upvalueCount != 0) {
         cerr << "ICE. Script has upvalues." << endl;
     }
@@ -164,6 +169,7 @@ InterpretResult VM::run() {
         int instructionOffset = (int) (ip - frame.closure->function->chunk->getCodePtr());
         debug.setChunk(chunk);
         debug.debugInstruction(instructionOffset);
+        // printDebugInfo();
         #endif
 
         #ifdef VM_PROFILING
@@ -213,9 +219,10 @@ InterpretResult VM::run() {
                 ASSERT_NUMBER(peek(0), "Array index must be an integer.")
                 ASSERT_SEQUENCE(peek(1), "Slice target must be a sequence")
                 int index = AS_NUMBER(pop());
-                Value array = pop();
+                Value array = peek();  // dont pop here cause gc
                 Value result;
                 bool success = accessSequenceIndex(array, index, &result);
+                pop();
                 if (success) push(result);
                 else return INTERPRET_RUNTIME_ERROR;
                 break;
@@ -227,9 +234,10 @@ InterpretResult VM::run() {
                 ASSERT_SEQUENCE(peek(2), "Slice target must be a sequence")
                 int endIndex = AS_NUMBER(pop());
                 int startIndex = AS_NUMBER(pop());
-                Value array = pop();
+                Value array = peek();  // dont pop here cause gc
                 Value result;
                 bool success = accessSequenceSlice(array, startIndex, endIndex, &result);
+                pop();
                 if (success) push(result);
                 else return INTERPRET_RUNTIME_ERROR;
                 break;
@@ -287,8 +295,11 @@ InterpretResult VM::run() {
             case OP_CLOSURE: {
                 ASSERT_POP(1)
                 ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
+                push(OBJ_VAL(function));  // for gc
                 ObjClosure* closure = newClosure(function);
+                pop();
                 push(OBJ_VAL(closure));
+                linkObjects(&objects, (Obj*) closure);
 
                 for (int i=0;i<function->upvalueCount;i++) {
                     uint8_t isLocal = READ_BYTE();
@@ -471,8 +482,8 @@ bool VM::isFalsy(Value value){
 }
 
 void VM::concatenate(){
-    ObjString* b = AS_STRING(pop());
-    ObjString* a = AS_STRING(pop());
+    ObjString* b = AS_STRING(peek(0));
+    ObjString* a = AS_STRING(peek(1));   // gc
 
     uint32_t length = a->array.length-1 + b->array.length-1;
     char* chars = ALLOCATE(char, length + 1);
@@ -480,7 +491,9 @@ void VM::concatenate(){
     memcpy(chars + a->array.length - 1, b->array.contents, b->array.length - 1);
     chars[length] = '\0';
 
-    ObjString* result = takeString(&strings, &objects, chars,  length);
+    ObjString* result = takeString(&strings, &objects, chars, length);
+    pop();
+    pop();
     push(OBJ_VAL(result));
 }
 
@@ -495,14 +508,14 @@ void VM::freeObjects(){
 
 void VM::printDebugInfo() {
     Chunk* chunk = frames[frameCount - 1].closure->function->chunk;
-    *out << "Current Chunk Constants:" << endl;
+    cout << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
-    *out << "Allocated Heap Objects:" << endl;
+    cout << "Allocated Heap Objects:" << endl;
     printObjectsList(objects);
-    *out << "Current Stack:" << endl;
+    cout << "Current Stack:" << endl;
     printValueArray(stack, stackTop - 1);
-    *out << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
-    printStackTrace(out);
+    cout << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
+    printStackTrace(&cout);
 }
 
 void VM::loadInlineConstant(){

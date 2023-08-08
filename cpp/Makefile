@@ -1,7 +1,7 @@
 CXX=g++ $(CXXFLAGS)
 CXXFLAGS=-g -std=c++17
 
-memory.o: memory.h memory.cc
+memory.o: memory.h memory.cc common.h
 	$(CXX) -c memory.cc -g
 
 list.o: list.cc memory.o common.h

@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "vm.h"
 
 Chunk::Chunk(){
     code = new ArrayList<byte>();
@@ -88,7 +89,10 @@ const_index_t Chunk::addConstant(Value value){
 }
 
 void Chunk::rawAddConstant(Value value){
+    VM* vm = (VM*) evilVmGlobal;
+    vm->push(value);
     constants->push(value);
+    vm->pop();
 }
 
 int Chunk::getCodeSize() {

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "value.h"
+#include "list.cc"
 
 // TODO: Could rewrite as a class but for now i want to make sure i understand how it works without.
 //     : It's cooler to do types without types.
@@ -45,6 +46,7 @@ struct Obj {
     // Since singly linked, the vm needs to make sure it always has the first in the chain.
     // That's easy enough that it's not worth the overhead of an extra pointer on every single Obj.
     struct Obj* next;  // TODO: what does the struct keyword do here?
+    bool isMarked;
 };
 
 struct ObjArray {
