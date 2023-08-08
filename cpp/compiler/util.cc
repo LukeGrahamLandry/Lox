@@ -29,7 +29,7 @@ void Compiler::emitByte(byte b){
     if (bufferStack.count == 0){
         currentChunk()->write(b, current.line);
     } else {
-        (*bufferStack.peekLast())->push(b);
+        bufferStack.peekLast()->push(b);
     }
 }
 
@@ -82,7 +82,7 @@ void Compiler::errorAt(Token& token, const char *message){
 }
 
 Chunk* Compiler::currentChunk(){
-    return functionStack.peekLast()->function->chunk;
+    return functionStack.peekLast().function->chunk;
 }
 
 void Compiler::writeShort(int offset, uint16_t v){
@@ -110,7 +110,7 @@ void Compiler::flushBuffer(ArrayList<byte>*& buffer){
     checkNotInBuffers(buffer);
 
     for (int i=0;i<buffer->count;i++){
-        emitByte(buffer->get(i));
+        emitByte((*buffer)[i]);
     }
 
     delete buffer;
@@ -126,7 +126,7 @@ void Compiler::checkNotInBuffers(ArrayList<byte>* buffer){
 
     uint i= bufferStack.count - 1;
     do {
-        if (bufferStack.get(i) == buffer){
+        if (bufferStack[i] == buffer){
             cerr << "Compiler must call popBuffer before flushBuffer" << endl;
             if (i == bufferStack.count - 1) {
                 // If you find yourself thinking that flushBuffer should just call popBuffer automatically,

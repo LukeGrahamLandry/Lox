@@ -24,9 +24,9 @@ void Chunk::write(byte b, int line){
     code->push(b);
 
     if (!lines->isEmpty()){
-        int prevLine = lines->get(lines->count - 1);
+        int prevLine = (*lines)[lines->count - 1];
         if (line == prevLine){
-            int prevCount = lines->get(lines->count - 2);
+            int prevCount = (*lines)[lines->count - 2];
             lines->set(lines->count - 2, prevCount + 1);
             return;
         }
@@ -42,8 +42,8 @@ int Chunk::getLineNumber(int opcodeOffset){
 
     int currentTokenIndex = 0;
     for (int i=0;i<lines->count-1;i+=2){
-        int count = lines->get(i);
-        int lineNumber = lines->get(i + 1);
+        int count = (*lines)[i];
+        int lineNumber = (*lines)[i+1];
         currentTokenIndex += count;
         if (opcodeOffset <= currentTokenIndex) return lineNumber;
     }
@@ -67,7 +67,7 @@ const_index_t Chunk::addConstant(Value value){
 
     // Loop through all existing constants to deduplicate.
     for (int i=0;i<constants->size();i++){
-        Value constant = constants->get(i);
+        Value constant = (*constants)[i];
         if (valuesEqual(value, constant)){
             if (IS_OBJ(value)){ // The Obj struct is allocated on the heap.
                 bool sameAddress = AS_OBJ(value) == AS_OBJ(constant);
@@ -105,7 +105,7 @@ unsigned char *Chunk::getCodePtr() {
 
 unsigned char Chunk::getInstruction(int offset) {
     uint32_t index = offset < 0 ? code->count + offset: offset;
-    return code->get(index);
+    return (*code)[index];
 }
 
 int Chunk::popInstruction() {
@@ -117,7 +117,7 @@ void Chunk::printConstantsArray() {
 }
 
 Value Chunk::getConstant(int index) {
-    return constants->get(index);
+    return (*constants)[index];
 }
 
 
@@ -153,7 +153,7 @@ ArrayList<byte>* Chunk::exportAsBinary(){
     assert(sizeof(double) == 8);
     for (int i=0;i<constants->size();i++){
         output->push(OP_LOAD_INLINE_CONSTANT);
-        Value value = constants->get(i);
+        Value value = (*constants)[i];
         switch (value.type) {
             case VAL_NUMBER: {
                 output->push(0);
@@ -176,7 +176,7 @@ ArrayList<byte>* Chunk::exportAsBinary(){
                         output->push(func->arity);
                         // keep name? should put all the names in a different uniform place.
                         ArrayList<byte>* inner = func->chunk->exportAsBinary();
-                        output->append(inner);
+                        output->append(*inner);
                         delete inner;
                     }
                     default:
@@ -195,14 +195,14 @@ ArrayList<byte>* Chunk::exportAsBinary(){
     }
 
 
-    output->append(code);
+    output->append(*code);
     return output;
 }
 
 uint32_t Chunk::getExportSize(){
     uint32_t total = 0;
     for (int i=0;i<constants->size();i++){
-        Value value = constants->get(i);
+        Value value = (*constants)[i];
         total += 2;
         switch (value.type) {
             case VAL_NUMBER: {

@@ -10,7 +10,7 @@ Compiler::~Compiler(){
     if (bufferStack.count > 0){
         cerr << "Compiler had " << bufferStack.count << " unterminated bufferStack." << endl;
         for (int i=0; i < bufferStack.count; i++){
-            delete bufferStack.get(i);
+            delete bufferStack[i];
         }
     }
 };
@@ -126,11 +126,11 @@ void Compiler::varStatement(){
 
     parseLocalVariable("Expect variable name.");
 
-    (*getLocals()->peekLast()).isFinal = isFinal;
-    (*getLocals()->peekLast()).isCaptured = false;
+    getLocals().peekLast().isFinal = isFinal;
+    getLocals().peekLast().isCaptured = false;
     if (match(TOKEN_EQUAL)){
         expression();
-        (*getLocals()->peekLast()).assignments++;
+        getLocals().peekLast().assignments++;
     } else {
         emitByte(OP_NIL);
     }
@@ -148,20 +148,20 @@ void Compiler::funDeclaration(){
 }
 
 void Compiler::beginScope(){
-    functionStack.peekLast()->scopeDepth++;
+    functionStack.peekLast().scopeDepth++;
 }
 
 void Compiler::endScope(){
     // Walk back through the stack and pop off everything in this scope
     int count = emitScopePops(scopeDepth() - 1);
-    getLocals()->popMany(count);
-    functionStack.peekLast()->scopeDepth--;
+    getLocals().popMany(count);
+    functionStack.peekLast().scopeDepth--;
 }
 
 int Compiler::emitScopePops(int targetDepth){
     int localsCount = 0;
-    for (int i = (int) getLocals()->count - 1; i >= 0; i--){
-        Local check = getLocals()->get(i);
+    for (int i = (int) getLocals().count - 1; i >= 0; i--){
+        Local check = getLocals()[i];
         if (check.depth <= targetDepth) {
             break;
         }

@@ -72,6 +72,7 @@ class Chunk {
         static Chunk* importFromBinary(const char* path);
         static string opcodeNames[256];
 
+        // TODO: why are these lists on the heap
         ArrayList<byte>* code;
 private:
     ArrayList<int>* lines;

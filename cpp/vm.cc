@@ -60,6 +60,9 @@ bool VM::loadFromSource(char* src) {
     ObjClosure* closure = newClosure(function);
     pop();
     push(OBJ_VAL(closure));
+    if (function->upvalueCount != 0) {
+        cerr << "ICE. Script has upvalues." << endl;
+    }
 
     // this doesn't actually run it, just sets it as the current frame on the call stack
     call(closure, 0);
@@ -142,8 +145,8 @@ InterpretResult VM::run() {
     #define BINARY_OP(op_code, c_op, resultCast) \
             case op_code: {                      \
                  ASSERT_POP(2)                   \
-                 ASSERT_NUMBER(peek(0), "Right operand to '" #c_op "' must be a number.")           \
-                 ASSERT_NUMBER(peek(1), string("Left operand to '" #c_op "' must be a number."))    \
+                 ASSERT_NUMBER(peek(0), "Operands must be numbers.")           \
+                 ASSERT_NUMBER(peek(1), string("Operands must be numbers."))    \
                  Value right = pop();            \
                  Value left = pop();             \
                  push(resultCast(AS_NUMBER(left) c_op AS_NUMBER(right)));                           \
@@ -251,7 +254,7 @@ InterpretResult VM::run() {
                 break;
             }
             case OP_NEGATE:
-                ASSERT_NUMBER(peek(0), "Operand to '-' must be a number.")
+                ASSERT_NUMBER(peek(0), "Operand must be a number.")
                 push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
             case OP_PRINT:
@@ -293,7 +296,7 @@ InterpretResult VM::run() {
                     if (isLocal) {
                         closure->upvalues.push(captureUpvalue(frame.slots + index));
                     } else {
-                        closure->upvalues.push(frame.closure->upvalues.get(index));
+                        closure->upvalues.push(frame.closure->upvalues[index]);
                     }
                 }
                 break;
@@ -305,12 +308,12 @@ InterpretResult VM::run() {
             }
             case OP_GET_UPVALUE: {
                 uint8_t slot = READ_BYTE();
-                push(*frame.closure->upvalues.get(slot)->location);
+                push(*frame.closure->upvalues[slot]->location);
                 break;
             }
             case OP_SET_UPVALUE: {
                 uint8_t slot = READ_BYTE();
-                *frame.closure->upvalues.get(slot)->location = peek(0);
+                *frame.closure->upvalues[slot]->location = peek(0);
                 break;
             }
             case OP_NIL:
@@ -462,7 +465,9 @@ void VM::printStackTrace(ostream* output){
 }
 
 bool VM::isFalsy(Value value){
-    return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value)) || (IS_NUMBER(value) && AS_NUMBER(value) == 0);
+    // The book says zero is true.
+    // || (IS_NUMBER(value) && AS_NUMBER(value) == 0)
+    return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
 void VM::concatenate(){
@@ -649,7 +654,7 @@ bool VM::callValue(Value value, int argCount) {
 bool VM::call(ObjClosure* closure, int argCount){
     ObjFunction* function = closure->function;
     if (frameCount == FRAMES_MAX){
-        FORMAT_RUNTIME_ERROR("Frame stack overflow. Cannot recurse more than %d levels.", FRAMES_MAX);
+        runtimeError("Stack overflow.");
         return false;
     }
 

@@ -12,20 +12,20 @@ template <typename T>
             ArrayList(const ArrayList& other);
             ~ArrayList();
             void push(T value);
-            T get(uint index);
             void set(uint index, T value);
             bool isEmpty();
             T pop();
             void popMany(int count);
-            T* peek(uint indexFromFront);
-            T* peekLast();
+            T& peek(uint indexFromFront);
+            T& peekLast();
             void grow(uint delta);
             void growExact(uint delta);
             void appendMemory(T* source, uint length);
-            void append(ArrayList<T>* source);
+            void append(const ArrayList<T>& source);
             ArrayList<T> copy();
             T remove(uint index);
             void shrink();
+            T& operator[](size_t index);
 
             T* data;
             uint32_t count;
@@ -50,6 +50,16 @@ ArrayList<T>::ArrayList(uint32_t size) {
 }
 
 template<typename T>
+T& ArrayList<T>::operator[](size_t index) {
+#ifdef VM_SAFE_MODE
+    if (index >= count)  {
+        cerr << "ArrayList of count " << count << " can't get index " << index << endl;
+    }
+#endif
+    return data[index];
+}
+
+template<typename T>
 void ArrayList<T>::popMany(int countIn) {
     #ifdef VM_SAFE_MODE
     if (count < countIn) {
@@ -67,10 +77,10 @@ T ArrayList<T>::remove(uint index) {
     }
     #endif
 
-    T result = get(index);
+    T result = (*this)[index];
     count--;
     for (uint i=index;i<count;i++){
-        set(i, get(i + 1));
+        set(i, (*this)[i + 1]);
     }
 
     return result;
@@ -85,18 +95,18 @@ ArrayList<T>::ArrayList(T* source, uint32_t length) {
 }
 
 template<typename T>
-inline T* ArrayList<T>::peek(uint32_t indexFromFront) {
+inline T& ArrayList<T>::peek(uint32_t indexFromFront) {
     #ifdef VM_SAFE_MODE
     if (indexFromFront > count) {
         cerr << "ArrayList of count " << count << " can't peek index " << indexFromFront  << endl;
     }
     #endif
 
-    return data + indexFromFront;
+    return (*this)[indexFromFront];
 }
 
 template<typename T>
-inline T* ArrayList<T>::peekLast() {
+inline T& ArrayList<T>::peekLast() {
     return peek(count - 1);
 }
 
@@ -109,7 +119,7 @@ inline bool ArrayList<T>::isEmpty() {
 // Still resizes by at least <capacity> to keep the amortized constant time push().
 template<typename T>
 void ArrayList<T>::grow(uint32_t delta) {
-    if (capacity > count + delta) return;
+    if (capacity >= count + delta) return;
     int oldCapacity = capacity;
     capacity += capacity > delta ? (isEmpty() ? 8 : capacity) : delta;
     data = (T*) reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity);
@@ -159,6 +169,9 @@ ArrayList<T>::ArrayList(){
 template <typename T>
 ArrayList<T>::~ArrayList(){
     reallocate(data, sizeof(T) * capacity, 0);
+    data = 0;  // crash if access
+    capacity = 12345;
+    count = 6789;
 }
 
 template <typename T>
@@ -178,17 +191,6 @@ T ArrayList<T>::pop(){
 
     count--;
     return data[count];
-}
-
-template <typename T>
-T ArrayList<T>::get(uint32_t index){
-    #ifdef VM_SAFE_MODE
-    if (index >= count)  {
-        cerr << "ArrayList of count " << count << " can't get index " << index << endl;
-    }
-    #endif
-
-    return data[index];
 }
 
 // Allowing a shallow copy doesn't make sense.
@@ -217,8 +219,8 @@ void ArrayList<T>::appendMemory(T* source, uint32_t length) {
 }
 
 template<typename T>
-void ArrayList<T>::append(ArrayList<T> *source) {
-    appendMemory(source->data, source->count);
+void ArrayList<T>::append(const ArrayList<T>& source) {
+    appendMemory(source.data, source.count);
 }
 
 #endif

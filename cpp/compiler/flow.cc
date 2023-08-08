@@ -8,15 +8,15 @@ void Compiler::breakOrContinueStatement(TokenType type){
         errorAt(previous, "Can't use loop jump outside loop.");
         return;
     }
-    LoopContext** ctx = loopStack.peekLast();
-    emitScopePops((*ctx)->startingScopeDepth);
+    LoopContext*& ctx = loopStack.peekLast();
+    emitScopePops((*ctx).startingScopeDepth);
     int location = emitJumpUnconditionally();
     switch (type) {
         case TOKEN_BREAK:
-            (*ctx)->breakStatementPositions.push(location);
+            (*ctx).breakStatementPositions.push(location);
             break;
         case TOKEN_CONTINUE:
-            (*ctx)->continueStatementPositions.push(location);
+            (*ctx).continueStatementPositions.push(location);
             break;
     }
 }
@@ -89,13 +89,14 @@ void Compiler::forStatement() {
 
     // Increment
     ArrayList<byte>* incrementExpression = pushBuffer();
-    if (!match(TOKEN_SEMICOLON)){
+    if (!match(TOKEN_RIGHT_PAREN)){
         expression();
         emitByte(OP_POP);
+        consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
     }
 
     popBuffer();
-    consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
 
     // Body
     pushActiveLoop();
@@ -122,7 +123,7 @@ void Compiler::pushActiveLoop(){
 // Call at the location 'continue' should return to.
 // Must be called after getJumpTarget.
 void Compiler::setContinueTarget(){
-    (*loopStack.peekLast())->continueTargetPosition = currentChunk()->getCodeSize();
+    loopStack.peekLast()->continueTargetPosition = currentChunk()->getCodeSize();
 }
 
 // Call at the location 'break' should skip to.
@@ -130,11 +131,11 @@ void Compiler::setContinueTarget(){
 void Compiler::setBreakTargetAndPopActiveLoop(){
     LoopContext* ctx = loopStack.pop();
     for (int i=0;i<ctx->breakStatementPositions.count;i++){
-        int location = ctx->breakStatementPositions.get(i);
+        int location = ctx->breakStatementPositions[i];
         patchJump(location);
     }
     for (int i=0;i<ctx->continueStatementPositions.count;i++){
-        int fromLocation = ctx->continueStatementPositions.get(i);
+        int fromLocation = ctx->continueStatementPositions[i];
         int jumpDistance = ctx->continueTargetPosition - fromLocation - 2;
         OpCode jumpType = OP_JUMP;
         if (jumpDistance < 0){

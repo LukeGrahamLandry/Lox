@@ -59,7 +59,7 @@ typedef struct {
     ObjFunction* function;
     ArrayList<Local>* variableStack;
     int scopeDepth;
-    ArrayList<Upvalue>* upvalues;  // TODO: dont heap allocate the lists
+    ArrayList<Upvalue>* upvalues;  // TODO: dont heap allocate the lists. but c++ is hateful and i cant deal with destructors rn
 } TargetFunction;
 
 class Compiler {
@@ -149,8 +149,8 @@ private:
 
     void emitPops(int count);
 
-    int resolveLocal(TargetFunction* func, Token name);
-    int addUpvalue(TargetFunction* func, uint8_t local, bool isLocal);
+    int resolveLocal(TargetFunction& func, Token name);
+    int addUpvalue(TargetFunction& func, uint8_t local, bool isLocal);
 
     int emitJumpIfTrue();
 
@@ -173,11 +173,11 @@ private:
 
     void pushFunction(FunctionType currentFunctionType);
     ObjFunction* popFunction();
-    ArrayList<Local>* getLocals(){
-        return functionStack.peekLast()->variableStack;
+    ArrayList<Local>& getLocals(){
+        return *functionStack.peekLast().variableStack;
     }
     int scopeDepth(){
-        return functionStack.peekLast()->scopeDepth;
+        return functionStack.peekLast().scopeDepth;
     }
 
     int argumentList();

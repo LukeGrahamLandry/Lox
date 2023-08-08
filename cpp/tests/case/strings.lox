@@ -5,3 +5,7 @@ print "hello"[2:];
 print "hello"[:];
 print "hello"[1:4];
 print "hello"[1:-1];
+
+var a = "world";
+var b = "wo" + "rld";
+print a == b;

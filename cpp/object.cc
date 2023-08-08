@@ -1,7 +1,5 @@
 #include "object.h"
-
 #include "memory.h"
-#include "object.h"
 #include "value.h"
 #include "vm.h"
 #include "common.h"
@@ -208,6 +206,7 @@ ObjNative *newNative(NativeFn function, uint8_t arity, ObjString* name) {
 ObjClosure* newClosure(ObjFunction* function) {
     ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
     closure->function = function;
+    // Not updating count here. Caller uses push on array list.
     closure->upvalues.growExact(function->upvalueCount);
     for (int i=0;i<function->upvalueCount;i++) {
         closure->upvalues.data[i] = nullptr;

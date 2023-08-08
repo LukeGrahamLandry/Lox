@@ -45,7 +45,7 @@ int main() {
     runOutputTest(
             "Index into strings",
             readFile("../tests/case/strings.lox"),
-            "h\no\nhe\nllo\nhello\nell\nell\n"
+            "h\no\nhe\nllo\nhello\nell\nell\ntrue\n"
     );
 
 
