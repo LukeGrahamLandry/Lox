@@ -17,12 +17,6 @@ typedef enum {
     INTERPRET_DEBUG_BREAK_POINT
 } InterpretResult;
 
-typedef struct {
-    ObjClosure* closure;
-    uint8_t* ip;
-    Value* slots;
-} CallFrame;
-
 class VM {
 public:
     VM();
@@ -55,8 +49,6 @@ public:
 
 //private:  // TODO
     Compiler compiler;
-    CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack
-    int frameCount;
 
     Debugger debug;
 
@@ -94,7 +86,7 @@ public:
     double getSequenceLength(Value array);
 
     inline Chunk* currentChunk(){
-        return frames[frameCount - 1].closure->function->chunk;
+        return gc.frames[gc.frameCount - 1].closure->function->chunk;
     }
 
     bool callValue(Value value, int count);

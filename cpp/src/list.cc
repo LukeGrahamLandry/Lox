@@ -9,32 +9,30 @@ template <typename T>
     class ArrayList {
         public:
             ArrayList();
-            explicit ArrayList(bool canGc);
             explicit ArrayList(uint32_t size);
-            ArrayList(T* source, uint length, Memory& gc);
+            ArrayList(T* source, uint32_t length, Memory& gc);
             ArrayList(const ArrayList& other);
             ~ArrayList();
             void release(Memory& gc);
             void push(T value, Memory& gc);
-            void set(uint index, T value);
+            void set(uint32_t index, T value);
             bool isEmpty();
             T pop();
             void popMany(int count);
-            T& peek(uint indexFromFront);
+            T& peek(uint32_t indexFromFront);
             T& peekLast();
-            void grow(uint delta, Memory& gc);
-            void growExact(uint delta, Memory& gc);
-            void appendMemory(T* source, uint length, Memory& gc);
+            void grow(uint32_t delta, Memory& gc);
+            void growExact(uint32_t delta, Memory& gc);
+            void appendMemory(T* source, uint32_t length, Memory& gc);
             void append(const ArrayList<T>& source, Memory& gc);
             ArrayList<T> copy(Memory& gc);
-            T remove(uint index);
+            T remove(uint32_t index);
             void shrink(Memory& gc);
             T& operator[](size_t index);
 
             T* data;
             uint32_t count;
             uint32_t capacity;
-            bool canGC;
 
         int size() {
             return count;
@@ -77,7 +75,7 @@ void ArrayList<T>::popMany(int countIn) {
 }
 
 template<typename T>
-T ArrayList<T>::remove(uint index) {
+T ArrayList<T>::remove(uint32_t index) {
     #ifdef VM_SAFE_MODE
     if (index >= count) {
         cerr << "ArrayList of count " << count << " can't remove index " << index << endl;
@@ -86,7 +84,7 @@ T ArrayList<T>::remove(uint index) {
 
     T result = (*this)[index];
     count--;
-    for (uint i=index;i<count;i++){
+    for (uint32_t i=index;i<count;i++){
         set(i, (*this)[i + 1]);
     }
 
@@ -96,7 +94,7 @@ T ArrayList<T>::remove(uint index) {
 template<typename T>
 ArrayList<T>::ArrayList(T* source, uint32_t length, Memory& gc) {
     capacity = length;
-    data = (T*) gc.reallocate(data, 0, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, 0, sizeof(T) * capacity);
     memcpy(data, source, sizeof(T) * length);
     count = length;
 }
@@ -129,7 +127,7 @@ void ArrayList<T>::grow(uint32_t delta, Memory& gc) {
     if (capacity >= count + delta) return;
     int oldCapacity = capacity;
     capacity += capacity > delta ? (isEmpty() ? 8 : capacity) : delta;
-    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity);
 }
 
 // Removes wasted space.
@@ -138,7 +136,7 @@ void ArrayList<T>::grow(uint32_t delta, Memory& gc) {
 // because realloc should just be able to shrink the memory block from the end instead of making a new one.
 template<typename T>
 void ArrayList<T>::shrink(Memory& gc) {
-    data = (T*) gc.reallocate(data, sizeof(T) * capacity, sizeof(T) * count, canGC);
+    data = (T*) gc.reallocate(data, sizeof(T) * capacity, sizeof(T) * count);
     capacity = count;
 }
 
@@ -148,11 +146,11 @@ void ArrayList<T>::shrink(Memory& gc) {
 // Normal grow has much better time performance for unknown sizes.
 // Using growExact() once on an empty list makes it just a nicer interface to a normal fixed size array.
 template<typename T>
-void ArrayList<T>::growExact(uint delta, Memory& gc) {
+void ArrayList<T>::growExact(uint32_t delta, Memory& gc) {
     if (capacity > count + delta) return;
     int oldCapacity = capacity;
     capacity = count + delta;
-    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity, canGC);
+    data = (T*) gc.reallocate(data, sizeof(T) * oldCapacity, sizeof(T) * capacity);
 }
 
 template<typename T>
@@ -167,14 +165,10 @@ void ArrayList<T>::set(uint32_t index, T value) {
 }
 
 template <typename T>
-ArrayList<T>::ArrayList() : ArrayList(false){}
-
-template <typename T>
-ArrayList<T>::ArrayList(bool canGC){
+ArrayList<T>::ArrayList(){
     data = nullptr;
     count = 0;
     capacity = 0;
-    this->canGC = canGC;
 }
 
 template <typename T>
@@ -187,7 +181,7 @@ ArrayList<T>::~ArrayList(){
 
 template <typename T>
 void ArrayList<T>::release(Memory& gc){
-    gc.reallocate(data, sizeof(T) * capacity, 0, canGC);
+    gc.reallocate(data, sizeof(T) * capacity, 0);
     data = 0;
     capacity = 0;
     count = 0;

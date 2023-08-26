@@ -22,6 +22,15 @@ int main(int argc, const char* argv[]) {
         Debugger::silent = true;
         script(&vm, argv[2]);
     }
+//
+//    char* src = "fun fib(n) {\n"
+//                "  if (n < 2) return n;\n"
+//                "  return fib(n - 2) + fib(n - 1);\n"
+//                "}\n"
+//                "\n"
+//                "print fib(4);";
+//    vm.loadFromSource(src);
+//    vm.run();
 
     return 0;
 }

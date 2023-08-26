@@ -1,54 +1,38 @@
-CXX=g++ $(CXXFLAGS)
-CXXFLAGS=-g -std=c++17
+BUILD_DIR ?= ./out
+SRC_DIRS ?= ./src
 
-list.o: list.cc common.h object.o
-	$(CXX) -c list.cc object.o -g
+SRCS := $(shell find $(SRC_DIRS) -name *.cc)
+OBJS_NATIVE := $(SRCS:%=$(BUILD_DIR)/native/%.o)
+OBJS_WEB := $(SRCS:%=$(BUILD_DIR)/web/%.o)
 
-value.o: value.h value.cc list.o object.o common.h
-	$(CXX) -c value.cc list.o object.o -g
+DEPS := $(OBJS_NATIVE:.o=.d)
+INC_DIRS := $(shell find $(SRC_DIRS) -type d)
+INC_FLAGS := $(addprefix -I,$(INC_DIRS))
+-include $(DEPS)
 
-chunk.o: chunk.h chunk.cc list.o value.o common.h
-	$(CXX) -c chunk.cc list.o value.o -g
+CPPFLAGS ?= $(INC_FLAGS) -MMD -MP -g -std=c++17
 
-debug.o: debug.h debug.cc chunk.o value.o common.h
-	$(CXX) -c debug.cc chunk.o value.o -g
+$(BUILD_DIR)/native/%.cc.o: %.cc
+	mkdir -p $(dir $@)
+	g++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-vm.o: vm.h vm.cc chunk.o value.o debug.o compiler/compiler.o object.o table.o common.h natives.o
-	$(CXX) -c vm.cc chunk.o value.o debug.o compiler.o object.o table.o natives.o -g
+$(BUILD_DIR)/web/%.cc.o: %.cc
+	mkdir -p $(dir $@)
+	emcc $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-scanner.o: scanner.cc scanner.h chunk.o value.o
-	$(CXX) -c scanner.cc chunk.o value.o -g
+native: $(OBJS_NATIVE)
+	g++ $(CPPFLAGS) $(OBJS_NATIVE) -o $(BUILD_DIR)/lox
 
-compiler/compiler.o: compiler/compiler.cc compiler/compiler.h chunk.o value.o scanner.o object.o common.h
-	$(CXX) -c compiler/compiler.cc chunk.o value.o object.o -g
+# Requires emscripten installed
+web: $(OBJS_WEB)
+	emcc -sSTACK_SIZE=1048576 $(OBJS_WEB) -o $(BUILD_DIR)/lox.html
 
-compiler/expression.o: compiler/expression.cc compiler/compiler.h chunk.o value.o scanner.o object.o common.h
-	$(CXX) -c compiler/expression.cc chunk.o value.o object.o -g
+tests: native tests/tests.cc
+	g++ $(CPPFLAGS) tests/tests.cc -o $(BUILD_DIR)/tests
 
-compiler/flow.o: compiler/flow.cc compiler/compiler.h chunk.o value.o scanner.o object.o common.h
-	$(CXX) -c compiler/flow.cc chunk.o value.o object.o -g
-
-compiler/util.o: compiler/util.cc compiler/compiler.h chunk.o value.o scanner.o object.o common.h
-	$(CXX) -c compiler/util.cc chunk.o value.o object.o -g
-
-object.o: object.cc object.h
-	$(CXX) -c object.cc -g
-
-natives.o: natives.cc value.cc value.h
-	$(CXX) -c natives.cc -g
-
-table.o: table.cc table.h
-	$(CXX) -c table.cc -g
-
-tests: tests/tests.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o scanner.o object.o table.o common.h
-	$(CXX) -o out/clox_tests tests/tests.cc util.o compiler.o expression.o flow.o list.o chunk.o list.o value.o debug.o vm.o scanner.o object.o table.o -g
-
-main: main.cc compiler/util.o compiler/compiler.o compiler/expression.o compiler/flow.o chunk.o debug.o vm.o scanner.o object.o table.o common.h
-	$(CXX) -o out/clox main.cc chunk.o util.o compiler.o expression.o flow.o list.o value.o debug.o vm.o scanner.o object.o table.o -g
+all: native web tests
 
 clean:
-	rm -r *.o
-	rm -r out
-	mkdir "out"
+	$(RM) -r $(BUILD_DIR)
 
-all: main tests
+.PHONY: clean web native all tests

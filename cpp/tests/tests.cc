@@ -1,93 +1,70 @@
 #include <sstream>
-#include "../chunk.h"
-#include "../vm.h"
-#include "../common.h"
+#include <iostream>
 
-void runOutputTest(const char* name, const char* code, const char* expectedOutput);
-string read(const char* path);
+using namespace std;
 
-void* evilVmGlobal = nullptr;
-void* evilCompilerGlobal = nullptr;
+void startTest(const string& name);
+void endTest(const string& name, bool result);
+std::string exec(string cmd);
 
-// TODO: copy paste
-char* readFile(const char* path) {
-    FILE* file = fopen(path, "rb");
+void run(const string& name, const string& expectedOutput) {
+    string cmd = "./out/lox ./tests/case/" + name;
+    startTest(name);
+    string result = exec(cmd);
 
-    if (file == NULL) {
-        fprintf(stderr, "Could not open file \"%s\".\n", path);
-        exit(74);
+    bool success = result == expectedOutput;
+    if (!success){
+        cout << "Expected output: " << endl << expectedOutput << endl;
+        cout << "Actual output: " << endl << result << endl;
     }
-
-    fseek(file, 0L, SEEK_END);
-    size_t fileSize = ftell(file);
-    rewind(file);
-
-    char* buffer = (char*)malloc(fileSize + 1);
-    size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
-    buffer[bytesRead] = '\0';
-
-    if (buffer == NULL) {
-        fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-        exit(74);
-    }
-
-    fclose(file);
-
-    if (bytesRead < fileSize) {
-        fprintf(stderr, "Could not read file \"%s\".\n", path);
-        exit(74);
-    }
-
-    return buffer;
+    endTest(name, success);
 }
 
 int passed = 0;
 int total = 0;
+vector<string> failed;
 
-int main() {
-    runOutputTest(
-            "Index into strings",
-            readFile("../tests/case/strings.lox"),
+int main(){
+    run(
+            "strings.lox",
             "h\no\nhe\nllo\nhello\nell\nell\ntrue\n"
     );
 
-    runOutputTest("functions", readFile("../tests/case/functions.lox"), "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n");
+    run(
+            "functions.lox",
+            "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n"
+    );
 
+    for (const string& n : failed) {
+        cout << "FAIL " << n << endl;
+    }
     cout << "Passed " << passed << " of " << total << " tests." << endl;
-    return 0;
 }
 
-void startTest(string& name){
+std::string exec(string cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+void startTest(const string& name){
     total++;
     cout << "START TEST " << total << ": " << name << "." << endl;
 }
 
-void endTest(string& name, bool result){
+void endTest(const string& name, bool result){
     if (result) cout << "PASS";
     else cout << "FAIL";
     cout << " TEST " << total << ": " << name << "." << endl;
     passed += result;
-}
-
-void runOutputTest(const char* name, const char* code, const char* expectedOutput){
-    string n = name;
-    string c = code;
-    string o = expectedOutput;
-    startTest(n);
-    bool result = false;
-
-    ostringstream buffer;
-    VM vm;
-    if (vm.loadFromSource(const_cast<char *>(c.c_str()))) {
-        vm.setOutput(&buffer);
-        vm.run();
-        result = buffer.str() == o;
-        if (!result){
-            cout << "Expected output: " << endl << o << endl;
-            cout << "Actual output: " << endl << buffer.str() << endl;
-        }
+    if (!result) {
+        failed.push_back(name);
     }
-
-    endTest(n, result);
 }
-

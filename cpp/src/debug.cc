@@ -128,7 +128,7 @@ int Debugger::debugInstruction(int offset){
             switch (type) {
                 case 0: {
                     double value;
-                    assert(sizeof(value) == 8);
+                    //assert(sizeof(value) == 8);
                     memcpy(&value, &chunk->getCodePtr()[offset], sizeof(value));
                     offset += sizeof(value);
                     printf("num %4f \n", value);
@@ -136,7 +136,7 @@ int Debugger::debugInstruction(int offset){
                 }
                 case (1 + OBJ_STRING): {
                     int length;
-                    assert(sizeof(length) == 4);
+                    //assert(sizeof(length) == 4);
                     memcpy(&length, &chunk->getCodePtr()[offset], sizeof(length));
                     offset += sizeof(length);
                     cout << "str '";

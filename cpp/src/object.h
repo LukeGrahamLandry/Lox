@@ -34,6 +34,7 @@ typedef enum {
     OBJ_NATIVE,
     OBJ_CLOSURE,
     OBJ_UPVALUE,
+    OBJ_FREED
 } ObjType;
 
 typedef struct ObjString ObjString;
@@ -120,6 +121,13 @@ inline char* asCString(ObjString* str){
 }
 
 typedef struct ObjClosure ObjClosure;
+
+typedef struct {
+    ObjClosure* closure;
+    uint8_t* ip;
+    Value* slots;
+} CallFrame;
+
 class Table;
 class Set;
 
@@ -134,6 +142,10 @@ public:
     vector<Obj*> grayStack;
     Value stack[STACK_MAX];  // working memory. my equivalent of registers
     Value* stackTop;  // where the next value will be inserted
+
+
+    CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack
+    int frameCount;
 
     bool enable;
 
@@ -151,7 +163,6 @@ public:
     }
 
     void* reallocate(void* pointer, size_t oldSize, size_t newSize);
-    void* reallocate(void* pointer, size_t oldSize, size_t newSize, bool allowGC);
     void collectGarbage();
     void markRoots();
     void traceReferences();

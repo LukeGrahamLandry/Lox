@@ -124,7 +124,7 @@ void Compiler::checkNotInBuffers(ArrayList<byte>* buffer){
         return;
     }
 
-    uint i= bufferStack.count - 1;
+    uint32_t i= bufferStack.count - 1;
     do {
         if (bufferStack[i] == buffer){
             cerr << "Compiler must call popBuffer before flushBuffer" << endl;

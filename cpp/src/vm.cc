@@ -2,7 +2,7 @@
 #include "compiler/compiler.h"
 #include "common.h"
 #include <cmath>
-#include "natives.cc"
+#include "natives.h"
 
 #define FORMAT_RUNTIME_ERROR(format, ...)     \
         fprintf(stderr, format, __VA_ARGS__); \
@@ -20,7 +20,7 @@ VM::VM() : compiler(Compiler(gc)) {
     gc.objects = nullptr;
     gc.natives = new Table(gc);
     gc.strings = new Set(gc);
-    frameCount = 0;
+    gc.frameCount = 0;
 
     out = &cout;
     err = &cerr;
@@ -99,7 +99,7 @@ InterpretResult VM::run() {
     CallFrame frame;
     Chunk* chunk;
     #define CACHE_FRAME()                             \
-            frame = frames[frameCount - 1];           \
+            frame = gc.frames[gc.frameCount - 1];           \
             chunk = frame.closure->function->chunk;            \
             ip = frame.ip;                            \
 
@@ -263,8 +263,8 @@ InterpretResult VM::run() {
                 ASSERT_POP(1)
                 Value value = pop();  // get the return value
 
-                frameCount--;
-                if (frameCount == 0) {
+                gc.frameCount--;
+                if (gc.frameCount == 0) {
                     resetStack();
                     if (IS_NUMBER(value)) {
                         exitCode = (int) AS_NUMBER(value);
@@ -289,6 +289,8 @@ InterpretResult VM::run() {
                 pop();
                 push(OBJ_VAL(closure));
 
+                // Growing the list here, not in newClosure so that the closure pointer is on the stack first incase gc triggers.
+                closure->upvalues.growExact(function->upvalueCount, gc);
                 for (int i=0;i<function->upvalueCount;i++) {
                     uint8_t isLocal = READ_BYTE();
                     uint8_t index = READ_BYTE();
@@ -449,8 +451,8 @@ void VM::runtimeError(const string& message){
 }
 
 void VM::printStackTrace(ostream* output){
-    for (int i = frameCount - 1; i >= 0; i--) {
-        CallFrame* frame = &frames[i];
+    for (int i = gc.frameCount - 1; i >= 0; i--) {
+        CallFrame* frame = &gc.frames[i];
         ObjFunction* function = frame->closure->function;
         int instructionOffset = (int) (frame->ip - function->chunk->getCodePtr() - 1);
         int line = function->chunk->getLineNumber(instructionOffset);
@@ -492,10 +494,11 @@ void VM::freeObjects(){
         gc.freeObject(object);
         object = next;
     }
+    gc.objects = nullptr;
 }
 
 void VM::printDebugInfo() {
-    Chunk* chunk = frames[frameCount - 1].closure->function->chunk;
+    Chunk* chunk = gc.frames[gc.frameCount - 1].closure->function->chunk;
     cout << "Current Chunk Constants:" << endl;
     chunk->printConstantsArray();
     cout << "Allocated Heap Objects:" << endl;
@@ -514,7 +517,7 @@ void VM::loadInlineConstant(){
     switch (type) {
         case 0: {
             double value;
-            assert(sizeof(value) == 8);
+            //assert(sizeof(value) == 8);
             memcpy(&value, ip, sizeof(value));
             ip += sizeof(value);
             currentChunk()->rawAddConstant(NUMBER_VAL(value), gc);
@@ -522,7 +525,7 @@ void VM::loadInlineConstant(){
         }
         case (1 + OBJ_STRING): {
             uint32_t length;
-            assert(sizeof(length) == 4);
+            //assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
             ObjString* str = gc.copyString((char*) ip, length-1);
@@ -535,7 +538,7 @@ void VM::loadInlineConstant(){
             func->arity = *ip;
             ip++;
             uint32_t length;
-            assert(sizeof(length) == 4);
+            //assert(sizeof(length) == 4);
             memcpy(&length, ip, sizeof(length));
             ip += sizeof(length);
             func->chunk->code->appendMemory(ip, length, gc);
@@ -639,7 +642,7 @@ bool VM::callValue(Value value, int argCount) {
                     Value result = func->function(this, gc.stackTop - argCount);
                     gc.stackTop -= argCount + 1;  // +1 for the object being called
                     push(result);
-                    frames[frameCount - 1].ip = ip;
+                    gc.frames[gc.frameCount - 1].ip = ip;
                     return true;
                 }
                 case OBJ_FUNCTION:
@@ -656,7 +659,7 @@ bool VM::callValue(Value value, int argCount) {
 // remember to always use CACHE_FRAME() in the run loop.
 bool VM::call(ObjClosure* closure, int argCount){
     ObjFunction* function = closure->function;
-    if (frameCount == FRAMES_MAX){
+    if (gc.frameCount == FRAMES_MAX){
         runtimeError("Stack overflow.");
         return false;
     }
@@ -666,11 +669,11 @@ bool VM::call(ObjClosure* closure, int argCount){
         return false;
     }
 
-    if (frameCount > 0) frames[frameCount - 1].ip = ip;
-    frames[frameCount].closure = closure;
-    frames[frameCount].ip = function->chunk->getCodePtr();
-    frames[frameCount].slots = gc.stackTop - argCount - 1;
-    frameCount++;
+    if (gc.frameCount > 0) gc.frames[gc.frameCount - 1].ip = ip;
+    gc.frames[gc.frameCount].closure = closure;
+    gc.frames[gc.frameCount].ip = function->chunk->getCodePtr();
+    gc.frames[gc.frameCount].slots = gc.stackTop - argCount - 1;
+    gc.frameCount++;
     return true;
 }
 

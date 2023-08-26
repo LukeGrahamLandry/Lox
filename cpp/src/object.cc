@@ -85,7 +85,9 @@ void Memory::freeObject(Obj* object){
 #ifdef DEBUG_LOG_GC
     printf("%p free type %d\n", (void*)object, object->type);
 #endif
-    switch (object->type) {
+    ObjType ty = object->type;
+    object->type = OBJ_FREED;
+    switch (ty) {
         case OBJ_STRING: {
             // We own the char array.
             ObjString* string = (ObjString*)object;
@@ -115,6 +117,9 @@ void Memory::freeObject(Obj* object){
             FREE(ObjUpvalue, object);
             break;
         }
+        case OBJ_FREED:
+            cerr << "Double Free " << (void*)object << endl;
+            break;
     }
 }
 
@@ -150,8 +155,11 @@ void printObject(Value value, ostream* output){
         case OBJ_UPVALUE:
             *output << "<upvalue>";
             break;
+        case OBJ_FREED:
+            *output << "<freed>";
+            break;
         default:
-            *output << "Untagged Obj " << AS_OBJ(value);
+            *output << "<Untagged Obj " << AS_OBJ(value) << ">";
     }
 }
 
@@ -209,11 +217,6 @@ ObjNative *Memory::newNative(NativeFn function, uint8_t arity, ObjString* name) 
 ObjClosure* Memory::newClosure(ObjFunction* function) {
     ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
     closure->function = function;
-    // Not updating count here. Caller uses push on array list.
-    closure->upvalues.growExact(function->upvalueCount, *this);
-    for (int i=0;i<function->upvalueCount;i++) {
-        closure->upvalues.data[i] = nullptr;
-    }
     return closure;
 }
 
@@ -225,18 +228,14 @@ ObjUpvalue* Memory::newUpvalue(Value* location) {
     return val;
 }
 
-void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize) {
-    return reallocate(pointer, oldSize, newSize, true);
-}
-
-void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize, bool allowGC){
+void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize){
     if (newSize == 0){
         free(pointer);
         return nullptr;
     }
 
-    if (allowGC && enable && newSize > oldSize) {
-#ifdef DEBUG_STRESS_GC
+    if (enable && newSize > oldSize) {
+#ifdef DEBUG_STRESS_GC  // TODO: also always run on array push even if no resize?
         collectGarbage();
 #endif
     }
@@ -286,6 +285,12 @@ void Memory::markRoots() {
             markValue(entry->value);
         }
     }
+
+    // TODO: dont think i need this so the field can be on the vm.
+    //       the closures you call are always in the first stack slot so its fine.
+//    for (int i=0;i<frameCount;i++) {
+//        markObject((Obj*) frames[i].closure);
+//    }
 
     if (evilCompilerGlobal != nullptr) ((Compiler*) evilCompilerGlobal)->markRoots();
 }
