@@ -3,8 +3,6 @@
 Compiler::Compiler(Memory& gc) : gc(gc) {
     hadError = false;
     panicMode = false;
-    evilCompilerGlobal = this;
-
 };
 
 Compiler::~Compiler(){

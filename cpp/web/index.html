@@ -1,0 +1,29 @@
+<html>
+<head>
+    <style>
+        body {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <textarea id="code" cols="30" rows="10">
+fun fib(n) {
+  if (n < 2) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+print fib(5);
+    </textarea>
+    <div>
+        <button onclick="handleRunClick()" id="run">Run</button>
+        <button onclick="forceResetWorker()" id="halt">Kill VM</button>
+    </div>
+    <script src="ui.js"></script>
+
+    <div>
+        <b><a href="https://github.com/LukeGrahamLandry/Lox">Github</a></b> <br>
+        This is based on the book <a href="https://craftinginterpreters.com/">Crafting Interpreters</a>
+    </div>
+</body>
+</html>

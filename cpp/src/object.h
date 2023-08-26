@@ -169,6 +169,18 @@ public:
     void sweep();
     void markValue(Value value);
     void markObject(Obj* object);
+
+    void push(Value value){
+        // TODO: bounds check
+        *stackTop = value;
+        stackTop++;
+    }
+
+    Value pop(){
+        // TODO: bounds check
+        stackTop--;
+        return *stackTop;
+    }
 };
 
 

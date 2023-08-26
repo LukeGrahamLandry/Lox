@@ -96,10 +96,9 @@ const_index_t Chunk::addConstant(Value value, Memory& gc){
 }
 
 void Chunk::rawAddConstant(Value value, Memory& gc){
-    VM* vm = (VM*) evilVmGlobal;
-    vm->push(value);
+    gc.push(value);
     constants->push(value, gc);
-    vm->pop();
+    gc.pop();
 }
 
 int Chunk::getCodeSize() {

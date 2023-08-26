@@ -51,11 +51,10 @@ ObjString* Memory::takeString(char* chars, uint32_t length) {
         str = slot->key;
         FREE_ARRAY(char, chars,  length + 1);  // + 1 for null terminator
     } else {
-        VM* vm = (VM*) evilVmGlobal;
         str = allocateString(chars, length, hash);
-        vm->push(OBJ_VAL(str));
+        push(OBJ_VAL(str));
         strings->setEntry(slot, str, NIL_VAL());
-        vm->pop();
+        pop();
     }
 
     return str;
@@ -217,6 +216,10 @@ ObjNative *Memory::newNative(NativeFn function, uint8_t arity, ObjString* name) 
 ObjClosure* Memory::newClosure(ObjFunction* function) {
     ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
     closure->function = function;
+    // TODO: constructor isn't called? but also can't assign
+    closure->upvalues.data = nullptr;
+    closure->upvalues.count = 0;
+    closure->upvalues.capacity = 0;
     return closure;
 }
 
@@ -266,8 +269,6 @@ void Memory::collectGarbage() {
 }
 
 void Memory::markRoots() {
-    if (evilVmGlobal == nullptr) return;
-
     for (Value* slot=stack;slot<stackTop;slot++) {
         markValue(*slot);
     }
@@ -291,8 +292,6 @@ void Memory::markRoots() {
 //    for (int i=0;i<frameCount;i++) {
 //        markObject((Obj*) frames[i].closure);
 //    }
-
-    if (evilCompilerGlobal != nullptr) ((Compiler*) evilCompilerGlobal)->markRoots();
 }
 
 void Memory::traceReferences() {

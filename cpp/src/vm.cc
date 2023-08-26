@@ -15,7 +15,6 @@ int VM::instructionCount[256] = {};
 #endif
 
 VM::VM() : compiler(Compiler(gc)) {
-    evilVmGlobal = this;
     resetStack();
     gc.objects = nullptr;
     gc.natives = new Table(gc);
@@ -36,7 +35,6 @@ VM::VM() : compiler(Compiler(gc)) {
 
 VM::~VM() {
     freeObjects();
-    evilVmGlobal = nullptr;
 }
 
 void VM::resetStack(){

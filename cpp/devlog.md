@@ -1,3 +1,7 @@
+## Aug 26
+
+- https://emscripten.org/docs/porting/connecting_cpp_and_javascript/Interacting-with-code.html
+- https://www.w3schools.com/html/html5_webworkers.asp
 
 ## Feb 8
 

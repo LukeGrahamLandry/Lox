@@ -10,7 +10,7 @@ using namespace std;
 //#define COMPILER_DEBUG_PRINT_CODE
 //#define VM_DEBUG_TRACE_EXECUTION
 //#define VM_ALLOW_DEBUG_BREAK_POINT
-//#define VM_SAFE_MODE
+#define VM_SAFE_MODE
 //#define VM_PROFILING
 
 #define byte uint8_t
@@ -18,8 +18,5 @@ using namespace std;
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
-
-extern void* evilVmGlobal;
-extern void* evilCompilerGlobal;
 
 #endif
