@@ -12,6 +12,7 @@ Value LoxNatives::time(VM* vm, Value* args) {
     return NUMBER_VAL((double) time / 1000);
 }
 
+// TODO: halt and wait for user
 Value LoxNatives::input(VM* vm, Value* args) {
     string line;
     getline(std::cin, line);
@@ -19,6 +20,7 @@ Value LoxNatives::input(VM* vm, Value* args) {
     return OBJ_VAL(str);
 }
 
+// TODO: remove. I feel like nobody sane wants this.
 Value LoxNatives::eval(VM* vm, Value* args) {
     char* code = AS_CSTRING(args[0]);
     return vm->produceFunction(code);

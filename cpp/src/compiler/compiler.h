@@ -70,6 +70,7 @@ public:
     ObjFunction* compile(char *src);
 
     Memory& gc;
+    ostream* err;  // TODO: unused because im using fprintf. newer c++ still doesnt seem to give me a format function for streams even though it says it does?
 //private:
     Token current;
     Token previous;

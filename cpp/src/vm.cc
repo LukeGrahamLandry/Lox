@@ -256,6 +256,7 @@ InterpretResult VM::run() {
                 ASSERT_POP(1)
                 printValue(pop(), out);
                 *out << endl;  // TODO: have a way to print without forcing the new line but should still generally push that for convince.
+                afterPrint();
                 break;
             case OP_RETURN: {
                 ASSERT_POP(1)
@@ -685,6 +686,10 @@ void VM::defineNative(const string& name, NativeFn function, int arity) {
     gc.natives->set(AS_STRING(peek(1)), peek(0));
     pop();
     pop();
+}
+
+void VM::afterPrint() {
+
 }
 
 #undef FORMAT_RUNTIME_ERROR

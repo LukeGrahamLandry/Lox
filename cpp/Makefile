@@ -31,7 +31,7 @@ native: $(OBJS_NATIVE)
 # Requires emscripten installed
 web: $(OBJS_WEB)
 	emcc $(CPPFLAGS) -g -sSTACK_SIZE=1048576 $(OBJS_WEB) -o $(BUILD_DIR)/lox.js \
-		-sEXPORTED_FUNCTIONS=_lox_run_src,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
+		-sEXPORTED_FUNCTIONS=_lox_run_src,_init_vm,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
 	cp web/index.html out/index.html
 	cp web/ui.js out/ui.js
 	cat out/lox.js web/worker.js > out/workerbundle.js

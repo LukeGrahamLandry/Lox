@@ -1,34 +1,48 @@
-# Interpreting a Crafted Interpreter
+# Lox-lang
 
 Several implementations of Lox, the language described in [Crafting Interpreters by Robert Nystrom](https://craftinginterpreters.com). Lox is a dynamically typed, garbage collected, programming language that runs on a virtual machine. 
 
-- jlox implemented in python
+# A byte-code virtual machine 
+
 - clox implemented in c++
 
-Some additional features are added, see the respective READMEs for details. 
+There are three targets that can be built with make. Build artifacts will be in the `out` folder. 
 
-## License Info
+### web
 
-- https://github.com/munificent/craftinginterpreters
+Compiled to web assembly (requires emscripten installed). There's a little ui that loads the vm in a web worker and lets you run scripts. The js/html files will be in the `out` directory. 
 
-The original source code for the book's implementation is available under the following license: 
+### native 
 
-> Copyright (c) 2015 Robert Nystrom  
->
-> Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to
-deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:  
->
-> The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-> 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-IN THE SOFTWARE.
+A native executable for running lox programs. 
+
+- Run with no arguments to enter REPL
+- Run with path to script as argument to execute it. 
+
+### tests
+
+Runs the lox files in `tests/cases` and checks their output. Requires being run from the cpp directory so it can find the test scripts. 
+
+## Extensions 
+
+- `continue` and `break` from loops. 
+- `s[index]` or `s[start:end]` (Index and slice strings. Negative indexes start from the end)
+- `condition ? true_value : false_value`
+- `a ** b` (a to the power of b)
+- `debugger;` (enter repl to inspect a certain point in script)
+- `import function_name;` or `import ClassName` (to import builtins)
+	- `clock() -> number`: Get the number of seconds since the program started. 
+	- `time() -> number`: Get the number of seconds since the UNIX epoch.  
+	- `getc() -> number`: Read a single character from stdin and return the character code as an integer. Returns -1 at end of input. 
+	- `chr(ch: number) -> string`: Convert given character code number to a single-character string. 
+	- `exit(status: number)`: Exit the process and return the given status code.
+	- `print_error(msg: string)`: Print message string on stderr.
+	- `sleep(ms: number)`: Suspend the program for some number of milliseconds. 
+	- `typeof(any)`
+	- `Array`
+
+# A tree-walk interpreter
+
+- jlox implemented in python
+
+Less interesting than clox but a good starting point. Some additional features are added, see the sub-directory's README. 

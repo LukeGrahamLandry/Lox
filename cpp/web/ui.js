@@ -14,8 +14,20 @@ function handleRunClick() {
 }
 
 function handleLoxMessage(msg){
-    if (msg.data.action === "finished") {
-        setWaitingForVm(false);
+    switch (msg.data.action) {
+        case "finished": {
+            setWaitingForVm(false);
+            break;
+        }
+        case "print": {
+            let out = document.getElementById("output");
+            if (msg.data.isErr) {
+                out.value += "Error:\n";
+            }
+            out.value += msg.data.msg;
+            out.scrollTo(0, out.scrollHeight);
+            break;
+        }
     }
 }
 

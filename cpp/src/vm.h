@@ -67,7 +67,7 @@ public:
         return gc.stackTop[-1];
     }
 
-    void runtimeError(const string &message);
+    virtual void runtimeError(const string &message);
     void printStackTrace(ostream* output);
 
     static bool isFalsy(Value value);
@@ -96,6 +96,8 @@ public:
 
     ObjUpvalue* captureUpvalue(Value* local);
     void closeUpvalues(Value* last);
+
+    virtual void afterPrint();
 };
 
 #endif

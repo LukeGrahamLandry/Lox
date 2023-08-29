@@ -5,9 +5,9 @@
 
 char* readFile(const char* path);
 void script(VM *vm, const char *path);
-void bytecode(VM *vm, const char *path);
 void repl(VM *vm);
 
+// TODO: fix debug repl. should be able to put you in the context and add new code.
 int main(int argc, const char* argv[]) {
     VM vm;
 
@@ -19,15 +19,6 @@ int main(int argc, const char* argv[]) {
         Debugger::silent = true;
         script(&vm, argv[2]);
     }
-//
-//    char* src = "fun fib(n) {\n"
-//                "  if (n < 2) return n;\n"
-//                "  return fib(n - 2) + fib(n - 1);\n"
-//                "}\n"
-//                "\n"
-//                "print fib(4);";
-//    vm.loadFromSource(src);
-//    vm.run();
 
     return 0;
 }

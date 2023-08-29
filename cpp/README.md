@@ -1,12 +1,3 @@
-## Language Additions
-
-- `debugger;` 
-- `exit;`
-- `a ** b` (a to the power of b)
-- Index and slice strings: `s[index]` or `s[start:end]`
-- `break` and `continue`
-- `condition ? a : b`
-
 ## Parsing Source Code
 
 - It's just a massive switch statement.

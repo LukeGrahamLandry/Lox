@@ -3,6 +3,7 @@
 Compiler::Compiler(Memory& gc) : gc(gc) {
     hadError = false;
     panicMode = false;
+    err = &cerr;
 };
 
 Compiler::~Compiler(){
