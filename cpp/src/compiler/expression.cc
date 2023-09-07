@@ -170,6 +170,20 @@ void Compiler::parsePrecedence(Precedence precedence){
                 emitBytes(OP_CALL, args);
                 break;
             }
+            case TOKEN_DOT: {  // field access
+                if (precedence > PREC_CALL) return;
+                advance();
+                consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+                int nameId = identifierConstant(previous);
+
+                if (canAssign && match(TOKEN_EQUAL)) {
+                    expression();
+                    emitBytes(OP_SET_PROPERTY, nameId);
+                } else {
+                    emitBytes(OP_GET_PROPERTY, nameId);
+                }
+                break;
+            }
             default:
                 return;
         }

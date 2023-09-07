@@ -33,13 +33,13 @@ Runs the lox files in `tests/cases` and checks their output. Requires being run 
 - `import function_name;` or `import ClassName` (to import builtins)
 	- `clock() -> number`: Get the number of seconds since the program started. 
 	- `time() -> number`: Get the number of seconds since the UNIX epoch.  
+<!--
 	- `getc() -> number`: Read a single character from stdin and return the character code as an integer. Returns -1 at end of input. 
 	- `chr(ch: number) -> string`: Convert given character code number to a single-character string. 
 	- `exit(status: number)`: Exit the process and return the given status code.
 	- `print_error(msg: string)`: Print message string on stderr.
 	- `sleep(ms: number)`: Suspend the program for some number of milliseconds. 
-	- `typeof(any)`
-	- `Array`
+-->
 
 # A tree-walk interpreter
 

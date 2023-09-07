@@ -85,12 +85,14 @@ ObjFunction* Compiler::compile(char* src){
 void Compiler::declaration(){
     switch (current.type) {
         case TOKEN_FINAL:
-        case TOKEN_VAR: {
+        case TOKEN_VAR:
             varStatement();
             break;
-        }
         case TOKEN_FUN:
             funDeclaration();
+            break;
+        case TOKEN_CLASS:
+            classDeclaration();
             break;
 
         case TOKEN_IMPORT: {
@@ -179,6 +181,20 @@ int Compiler::emitScopePops(int targetDepth){
     }
 
     return localsCount;
+}
+
+void Compiler::classDeclaration(){
+    consume(TOKEN_CLASS, "unreachable");
+    consume(TOKEN_IDENTIFIER, "Expect class name.");
+    int nameId = identifierConstant(previous);
+    int _varId = declareLocalVariable();
+    emitBytes(OP_CLASS, nameId);
+    defineLocalVariable();
+
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+    // methods, etc.
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+
 }
 
 

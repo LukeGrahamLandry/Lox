@@ -35,6 +35,10 @@ int main(){
             "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n"
     );
 
+    run("class.lox",
+"Toast\nToast instance\ngrape\ngrape\ndone\n"
+    );
+
     for (const string& n : failed) {
         cout << "FAIL " << n << endl;
     }

@@ -120,6 +120,7 @@ public:
     void declaration();
     void statement();
     void varStatement();
+    void classDeclaration();
     void expressionStatement();
     void checkNotInBuffers(ArrayList<byte>* buffer);
 

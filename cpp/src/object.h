@@ -5,6 +5,7 @@ class Memory;
 typedef struct Value Value;
 
 #include "common.h"
+#include <vector>
 
 // TODO: Could rewrite as a class but for now i want to make sure i understand how it works without.
 //     : It's cooler to do types without types.
@@ -15,12 +16,15 @@ typedef struct Value Value;
 
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
-#define IS_CLOSURE(value)     isObjType(value, OBJ_CLOSURE)
+#define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
+#define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
 
 #define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      ((char*) ((ObjString*)AS_OBJ(value))->array.contents)
 #define AS_CLOSURE(value)       ((ObjClosure*)AS_OBJ(value))
+#define AS_CLASS(value)       ((ObjClass*)AS_OBJ(value))
+#define AS_INSTANCE(value)       ((ObjInstance*)AS_OBJ(value))
 
 
 #define ALLOCATE(type, length) (type*) reallocate(nullptr, 0, sizeof(type) * length)
@@ -34,12 +38,15 @@ typedef enum {
     OBJ_NATIVE,
     OBJ_CLOSURE,
     OBJ_UPVALUE,
+    OBJ_CLASS,
+    OBJ_INSTANCE,
     OBJ_FREED
 } ObjType;
 
 typedef struct ObjString ObjString;
 typedef struct Table Table;
 typedef struct Set Set;
+typedef struct ObjInstance ObjInstance;
 
 struct Obj {
     ObjType type;
@@ -100,6 +107,11 @@ typedef struct ObjUpvalue {
     Value closed;
 } ObjUpvalue;
 
+typedef struct ObjClass {
+    Obj obj;
+    ObjString* name;
+} ObjClass;
+
 bool isObjType(Value value, ObjType type);
 void printObject(Value value, ostream* output);
 void printObject(Value value);
@@ -157,6 +169,9 @@ public:
     ObjFunction* newFunction();
     ObjClosure* newClosure(ObjFunction* function);
     ObjUpvalue* newUpvalue(Value* function);
+    ObjClass* newClass(ObjString* name);
+    ObjInstance* newInstance(ObjClass* klass);
+    void markTable(Table& table);
     ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
     inline void freeStringChars(ObjString* string){
         FREE_ARRAY(char, string->array.contents, string->array.length);
@@ -192,6 +207,13 @@ typedef struct ObjClosure {
     ObjFunction* function;
     ArrayList<ObjUpvalue*> upvalues;
 } ObjClosure;
+
+struct ObjInstance {
+    Obj obj;
+    ObjClass* klass;
+    // TODO: this doesnt need the level of indirection. ive just gotten myself in a hole by being bad at c++ when I started
+    Table* fields;
+};
 
 
 #endif

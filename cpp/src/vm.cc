@@ -359,12 +359,57 @@ InterpretResult VM::run() {
             case OP_CALL: {
                 int argCount = READ_BYTE();
                 ASSERT_POP(argCount + 1)
+                int frames = gc.frameCount;
                 if (!callValue(peek(argCount), argCount)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 CACHE_FRAME()
+
                 break;
             }
+            case OP_CLASS: {
+                ObjString* name = READ_STRING();
+                push(OBJ_VAL(gc.newClass(name)));
+                break;
+            }
+            case OP_SET_PROPERTY: {
+                Value val = peek();
+                Value inst = peek(1);
+                if (!IS_INSTANCE(inst)) {
+                    runtimeError("Only instances have fields.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                AS_INSTANCE(inst)->fields->set(READ_STRING(), val);
+
+                pop();
+                pop();
+                push(val);  // assignment is an expression.
+                break;
+            }
+
+            case OP_GET_PROPERTY: {
+                Value inst = peek();
+                if (!IS_INSTANCE(inst)) {
+                    runtimeError("Only instances have fields.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjString* name = READ_STRING();
+                Value val;
+                bool found = AS_INSTANCE(inst)->fields->get(name, &val);
+
+
+                if (found) {
+                    pop();
+                    push(val);
+                } else {
+                    FORMAT_RUNTIME_ERROR("Undefined property '%s'.", (char*) name->array.contents);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
@@ -644,11 +689,20 @@ bool VM::callValue(Value value, int argCount) {
                     gc.frames[gc.frameCount - 1].ip = ip;
                     return true;
                 }
+                case OBJ_CLASS: {
+                    ObjClass* klass = AS_CLASS(value);
+                    // Leave extra args alone, they'll get passed to the constructor later.
+                    gc.stackTop[argCount - 1] = OBJ_VAL(gc.newInstance(klass));
+                    gc.frames[gc.frameCount - 1].ip = ip;  // Frame gets reloaded to handle real functions.
+                    return true;
+                }
                 case OBJ_FUNCTION:
                     runtimeError("ICE. No direct function call. Must wrap with closure.");
                 default:
                     break;
             }
+            break;
+        default:
             break;
     }
     runtimeError("Can only call functions and classes.");

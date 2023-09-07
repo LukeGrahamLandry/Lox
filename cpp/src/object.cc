@@ -116,6 +116,15 @@ void Memory::freeObject(Obj* object){
             FREE(ObjUpvalue, object);
             break;
         }
+        case OBJ_CLASS: {
+            FREE(ObjClass, object);  // name is an interned string
+            break;
+        }
+        case OBJ_INSTANCE: {
+            delete ((ObjInstance*)object)->fields;  // GC will clean up entries in the table eventually
+            FREE(OBJ_INSTANCE, object);
+            break;
+        }
         case OBJ_FREED:
             cerr << "Double Free " << (void*)object << endl;
             break;
@@ -157,6 +166,16 @@ void printObject(Value value, ostream* output){
         case OBJ_FREED:
             *output << "<freed>";
             break;
+        case OBJ_CLASS: {
+            char* name = (char*) AS_CLASS(value)->name->array.contents;
+            *output << name;
+            break;
+        }
+        case OBJ_INSTANCE: {
+            char* name = (char*) AS_INSTANCE(value)->klass->name->array.contents;
+            *output << name << " instance";
+            break;
+        }
         default:
             *output << "<Untagged Obj " << AS_OBJ(value) << ">";
     }
@@ -174,10 +193,7 @@ void printObjectOwnedAddresses(Value value){
         case OBJ_FUNCTION:
             cout << (void*) AS_FUNCTION(value)->chunk;
             break;
-        case OBJ_NATIVE:
-            cout << "TODO";
-            break;
-        case OBJ_CLOSURE:
+        default:
             cout << "TODO";
             break;
     }
@@ -221,6 +237,20 @@ ObjClosure* Memory::newClosure(ObjFunction* function) {
     closure->upvalues.count = 0;
     closure->upvalues.capacity = 0;
     return closure;
+}
+
+ObjClass* Memory::newClass(ObjString* name) {
+    ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
+    klass->name = name;
+    return klass;
+}
+
+
+ObjInstance* Memory::newInstance(ObjClass* klass) {
+    ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
+    instance->klass = klass;
+    instance->fields = new Table(*this);
+    return instance;
 }
 
 ObjUpvalue* Memory::newUpvalue(Value* location) {
@@ -279,13 +309,7 @@ void Memory::markRoots() {
         val = val->next;
     }
 
-    for (uint32_t i=0;i<natives->capacity;i++){
-        Entry* entry = natives->entries + i;
-        if (!Table::isEmpty(entry)) {
-            markObject((Obj*) entry->key);
-            markValue(entry->value);
-        }
-    }
+    markTable(*natives);
 
     // TODO: dont think i need this so the field can be on the vm.
     //       the closures you call are always in the first stack slot so its fine.
@@ -328,6 +352,24 @@ void Memory::traceReferences() {
                 auto* val = (ObjUpvalue*) object;
                 markValue(val->closed);
                 break;
+            }
+            case OBJ_CLASS: {
+                auto* val = (ObjClass*) object;
+                markObject((Obj*) val->name);
+                break;
+            }
+            case OBJ_INSTANCE: {
+                auto* val = (ObjInstance *) object;
+                markObject((Obj*) val->klass);
+                markTable(*val->fields);
+                break;
+            }
+            case OBJ_FREED: {
+                cerr << "ICE: marked already freed obj at " << (void*) object << endl;
+                break;
+            }
+            default: {
+                cerr << "ICE: marked untagged obj at " << (void*) object << endl;
             }
         }
     }
@@ -380,4 +422,15 @@ void Memory::markObject(Obj* object) {
 
     object->isMarked = true;
     grayStack.push_back(object);
+}
+
+
+void Memory::markTable(Table& table) {
+    for (uint32_t i=0;i<table.capacity;i++){
+        Entry* entry = table.entries + i;
+        if (!Table::isEmpty(entry)) {
+            markObject((Obj*) entry->key);
+            markValue(entry->value);
+        }
+    }
 }
