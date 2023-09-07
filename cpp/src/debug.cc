@@ -21,14 +21,14 @@ void Debugger::setChunk(Chunk* chunkIn) {
 void Debugger::debug(const string& name){
     if (silent) return;
 
-    cout << "== " << name << " ==" << endl;
+    cerr << "== " << name << " ==" << endl;
     for (int offset=0; offset < chunk->getCodeSize();){
         offset = debugInstruction(offset);
     }
 }
 
 int Debugger::simpleInstruction(const string& name, int offset) {
-    cout << name << endl;
+    cerr << name << endl;
     return offset + 1;
 }
 
@@ -36,14 +36,14 @@ int Debugger::constantInstruction(const string& name, int offset) {
     byte constantIndex = chunk->getCodePtr()[offset + 1];
     if (constantIndex < chunk->getConstantsSize()){
         Value constantValue = chunk->getConstant(constantIndex);
-        printf("%-16s %4d '", name.c_str(), constantIndex);
-        printValue(constantValue);
-        cout << "'" << endl;
+        fprintf(stderr, "%-16s %4d '", name.c_str(), constantIndex);
+        printValue(constantValue, &cerr);
+        cerr << "'" << endl;
     } else if (constantIndex < (chunk->getConstantsSize() + inlineConstantCount)){
-        printf("%-16s %4d Inline\n", name.c_str(), constantIndex);
+        fprintf(stderr, "%-16s %4d Inline\n", name.c_str(), constantIndex);
     }
     else {
-        printf("%-16s %4d Out of range\n", name.c_str(), constantIndex);
+        fprintf(stderr, "%-16s %4d Out of range\n", name.c_str(), constantIndex);
     }
 
     return offset + 2;
@@ -52,7 +52,7 @@ int Debugger::constantInstruction(const string& name, int offset) {
 int Debugger::jumpInstruction(const char* name, int sign, Chunk* chunk, int offset) {
     uint16_t jump = (uint16_t)(chunk->getCodePtr()[offset + 1] << 8);
     jump |= chunk->getCodePtr()[offset + 2];
-    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+    fprintf(stderr, "%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
@@ -61,9 +61,9 @@ int Debugger::debugInstruction(int offset){
 
     int line = chunk->getLineNumber(offset);
     if (line == lastLine){
-        printf("%04d    | ", offset);
+        fprintf(stderr, "%04d    | ", offset);
     } else {
-        printf("%04d %4d ", offset, line);
+        fprintf(stderr, "%04d %4d ", offset, line);
     }
     lastLine = line;
 
@@ -77,7 +77,7 @@ int Debugger::debugInstruction(int offset){
 
     #define BYTE_ARG(op) \
             case op:       \
-                printf("%-16s %4d \n", #op, chunk->getCodePtr()[offset + 1]); \
+                fprintf(stderr, "%-16s %4d \n", #op, chunk->getCodePtr()[offset + 1]); \
                 return offset + 2;
 
     OpCode instruction = (OpCode) chunk->getCodePtr()[offset];
@@ -125,7 +125,7 @@ int Debugger::debugInstruction(int offset){
             offset++;  // op
             unsigned char type = chunk->getCodePtr()[offset];
             offset++;  // type
-            printf("%-16s %4d ", "OP_LOAD_INLINE_CONSTANT", inlineConstantCount);
+            fprintf(stderr, "%-16s %4d ", "OP_LOAD_INLINE_CONSTANT", inlineConstantCount);
             inlineConstantCount++;
 
             switch (type) {
@@ -134,7 +134,7 @@ int Debugger::debugInstruction(int offset){
                     //assert(sizeof(value) == 8);
                     memcpy(&value, &chunk->getCodePtr()[offset], sizeof(value));
                     offset += sizeof(value);
-                    printf("num %4f \n", value);
+                    fprintf(stderr, "num %4f \n", value);
                     break;
                 }
                 case (1 + OBJ_STRING): {
@@ -151,7 +151,7 @@ int Debugger::debugInstruction(int offset){
                     break;
                 }
                 default:
-                    printf("%-16s %d Invalid Value Type \n", "OP_LOAD_INLINE_CONSTANT", type);
+                    fprintf(stderr, "%-16s %d Invalid Value Type \n", "OP_LOAD_INLINE_CONSTANT", type);
                     break;
             }
             return offset;
@@ -159,21 +159,21 @@ int Debugger::debugInstruction(int offset){
         case OP_CLOSURE: {
             offset++;
             uint8_t constant = chunk->getCodePtr()[offset++];
-            printf("%-16s %4d ", "OP_CLOSURE", constant);
+            fprintf(stderr, "%-16s %4d ", "OP_CLOSURE", constant);
             Value f_val = chunk->getConstant(constant);
-            printValue(f_val);
-            printf("\n");
+            printValue(f_val, &cerr);
+            fprintf(stderr, "\n");
 
             ObjFunction* function = AS_FUNCTION(f_val);
             for (int j = 0; j < function->upvalueCount; j++) {
                 int isLocal = chunk->getCodePtr()[offset++];
                 int index = chunk->getCodePtr()[offset++];
-                printf("%04d      |                     %s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
+                fprintf(stderr, "%04d      |                     %s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
             }
             return offset;
         }
         default:
-            cout << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
+            cerr << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;
     }
     #undef SIMPLE

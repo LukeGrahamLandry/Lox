@@ -74,7 +74,7 @@ ObjFunction* Compiler::compile(char* src){
     if (!hadError){
         debugger.setChunk(currentChunk());
         debugger.debug("script");
-        if (!Debugger::silent) cout << "==========" << endl;
+        if (!Debugger::silent) cerr << "==========" << endl;
     }
     #endif
 

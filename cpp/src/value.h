@@ -52,7 +52,7 @@ struct Value {
 
 void printValue(Value value);
 void printValue(Value value, ostream* output);
-void printValueArray(Value* startPtr, Value* endPtr);
+void debugPrintValueArray(Value* startPtr, Value* endPtr);
 bool valuesEqual(Value right, Value left);  // might need to move this back to the vm when equality needs runtime info
 
 #endif

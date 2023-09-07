@@ -7,7 +7,7 @@
 
 using namespace std;
 
-// TODO: its annoying that running the tests needs you to turn these off.
+// These cause various debugging info to be logged to stderr.
 #define COMPILER_DEBUG_PRINT_CODE
 #define VM_DEBUG_TRACE_EXECUTION
 #define VM_ALLOW_DEBUG_BREAK_POINT

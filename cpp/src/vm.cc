@@ -149,8 +149,8 @@ InterpretResult VM::run() {
     for (;;){
         #ifdef VM_DEBUG_TRACE_EXECUTION
         if (!Debugger::silent) {
-            cout << frame.slots - gc.stack;
-            printValueArray(gc.stack, gc.stackTop);
+            cerr << frame.slots - gc.stack;
+            debugPrintValueArray(gc.stack, gc.stackTop);
         }
 
         int instructionOffset = (int) (ip - frame.closure->function->chunk->getCodePtr());
@@ -447,9 +447,9 @@ InterpretResult VM::run() {
 
 ObjUpvalue* VM::captureUpvalue(Value* local){
 #ifdef VM_DEBUG_TRACE_EXECUTION
-    cout << "[Capture]: ";
-    printValue(*local);
-    cout << endl;
+    cerr << "[Capture]: ";
+    printValue(*local, &cerr);
+    cerr << endl;
 #endif
 
     ObjUpvalue* prev = nullptr;
@@ -478,9 +478,9 @@ void VM::closeUpvalues(Value* last) {
     // Go along open upvalues until you hit on earlier in the stack than <last>.
     while (gc.openUpvalues != nullptr && gc.openUpvalues->location >= last) {
 #ifdef VM_DEBUG_TRACE_EXECUTION
-        cout << "[Close] ";
-        printValue(*gc.openUpvalues->location);
-        cout << endl;
+        cerr << "[Close] ";
+        printValue(*gc.openUpvalues->location, &cerr);
+        cerr << endl;
 #endif
         // Steak the value and point to yourself instead of the stack.
         gc.openUpvalues->closed = *gc.openUpvalues->location;
@@ -548,7 +548,7 @@ void VM::printDebugInfo() {
     cout << "Allocated Heap Objects:" << endl;
     printObjectsList(gc.objects);
     cout << "Current Stack:" << endl;
-    printValueArray(gc.stack, gc.stackTop);
+    debugPrintValueArray(gc.stack, gc.stackTop);
     cout << "Index in chunk: " << (ip - chunk->getCodePtr() - 1) << ". Length of chunk: " << chunk->getCodeSize()  << "." << endl;
     printStackTrace(&cout);
     cout << "Strings:" << endl;

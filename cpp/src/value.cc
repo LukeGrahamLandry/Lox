@@ -27,14 +27,14 @@ void printValue(Value value){
     printValue(value, &cout);
 }
 
-void printValueArray(Value *startPtr, Value *endPtr) {
-    cout << "          ";
+void debugPrintValueArray(Value *startPtr, Value *endPtr) {
+    cerr << "          ";
     for (Value* slot = startPtr; slot < endPtr; slot++){
-        cout << "[";
-        printValue(*slot);
-        cout << "]";
+        cerr << "[";
+        printValue(*slot, &cerr);
+        cerr << "]";
     }
-    cout << endl;
+    cerr << endl;
 }
 
 bool valuesEqual(Value right, Value left) {

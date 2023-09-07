@@ -123,7 +123,7 @@ int Chunk::popInstruction() {
 }
 
 void Chunk::printConstantsArray() {
-    printValueArray(constants->data, constants->data + constants->size());
+    debugPrintValueArray(constants->data, constants->data + constants->size());
 }
 
 Value Chunk::getConstant(int index) {
