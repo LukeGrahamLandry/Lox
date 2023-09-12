@@ -329,6 +329,7 @@ void Memory::markRoots() {
     }
 
     markTable(*natives);
+    markObject((Obj*) init);
 
     // TODO: dont think i need this so the field can be on the vm.
     //       the closures you call are always in the first stack slot so its fine.

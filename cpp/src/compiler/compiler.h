@@ -47,7 +47,8 @@ typedef struct {
 typedef enum {
     TYPE_FUNCTION,
     TYPE_SCRIPT,
-    TYPE_METHOD
+    TYPE_METHOD,
+    TYPE_INITIALIZER
 } FunctionType;
 
 typedef struct {
@@ -125,6 +126,7 @@ public:
     void classDeclaration();
     void expressionStatement();
     void checkNotInBuffers(ArrayList<byte>* buffer);
+    void emitEmptyReturn();
 
     bool check(TokenType type);
 

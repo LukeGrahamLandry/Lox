@@ -160,6 +160,7 @@ public:
     vector<Obj*> grayStack;
     Value stack[STACK_MAX];  // working memory. my equivalent of registers
     Value* stackTop;  // where the next value will be inserted
+    ObjString* init = nullptr;
 
 
     CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack

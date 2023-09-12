@@ -35,7 +35,10 @@ void script(VM *vm, const char *path) {
     }
 
     free(src);
-    if (result == INTERPRET_OK) exit(vm->exitCode);
+    if (result == INTERPRET_OK) {
+        vm->printTimeByInstruction();
+        exit(vm->exitCode);
+    }
     if (result == INTERPRET_COMPILE_ERROR) exit(65);
     if (result == INTERPRET_RUNTIME_ERROR) exit(70);
 }

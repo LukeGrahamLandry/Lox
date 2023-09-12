@@ -31,9 +31,12 @@ VM::VM() : compiler(Compiler(gc)) {
     defineNative("time", LoxNatives::time, 0);
     defineNative("input", LoxNatives::input, 0);
     defineNative("eval", LoxNatives::eval, 1);
+
+    gc.init = gc.copyString("init", 4);
 }
 
 VM::~VM() {
+    gc.init = nullptr;
     freeObjects();
 }
 
@@ -668,20 +671,20 @@ double VM::getSequenceLength(Value array){
 
 void VM::printTimeByInstruction(){
     #ifdef VM_PROFILING
-        cout << "VM Time per Instruction Type" << endl;
+        cerr << "VM Time per Instruction Type" << endl;
         long totalTime = 0;
         long totalLoops = 0;
         for (int i=0;i<256;i++){
             totalTime += instructionTimeTotal[i];
             totalLoops += instructionCount[i];
         }
-        printf("%25s: %10ld ns (%.2f%%) for %7ld times (%.2f%%)\n","total", totalTime, 100.0, totalLoops, 100.0);
+        fprintf(stderr, "%25s: %10ld ns (%.2f%%) for %7ld times (%5.2f%%)\n","total", totalTime, 100.0, totalLoops, 100.0);
 
         for (int i=0;i<256;i++){
             if (instructionCount[i] > 0) {
                 double percentTime = (double) instructionTimeTotal[i] / (double) totalTime * 100;
                 double percentLoops = (double) instructionCount[i] / (double) totalLoops * 100;
-                printf("%25s: %10ld ns (%5.1f%%) for %7d times (%.2f%%)\n", Chunk::opcodeNames[i].c_str(), instructionTimeTotal[i], percentTime, instructionCount[i], percentLoops);
+                fprintf(stderr, "%25s: %10ld ns (%6.1f%%) for %7d times (%5.2f%%)\n", Chunk::opcodeNames[i].c_str(), instructionTimeTotal[i], percentTime, instructionCount[i], percentLoops);
             }
         }
     #endif
@@ -696,7 +699,7 @@ bool VM::callValue(Value value, int argCount) {
                 case OBJ_BOUND_METHOD: {
                     auto bound = AS_BOUND_METHOD(value);
                     // Insert the bound receiver, in the stack slot reserved for `this`.
-                    // Overwrites the ObjBoundMethod we just called, which is fine because inst->klass->methods means the gc can still find it. 
+                    // Overwrites the ObjBoundMethod we just called, which is fine because inst->klass->methods means the gc can still find it.
                     gc.stackTop[argCount - 1] = bound->receiver;
                     return call(bound->method, argCount);
                 }
@@ -714,10 +717,21 @@ bool VM::callValue(Value value, int argCount) {
                 }
                 case OBJ_CLASS: {
                     ObjClass* klass = AS_CLASS(value);
-                    // Leave extra args alone, they'll get passed to the constructor later.
-                    gc.stackTop[argCount - 1] = OBJ_VAL(gc.newInstance(klass));
-                    gc.frames[gc.frameCount - 1].ip = ip;  // Frame gets reloaded to handle real functions.
-                    return true;
+                    // Replace the first slot (class value) with the instance, it will be used as the `this` value in the constructor.
+                    gc.stackTop[-argCount - 1] = OBJ_VAL(gc.newInstance(klass));
+
+                    Value init;
+                    if (klass->methods->get(gc.init, &init)) {
+                        // This will pop off all the args when it returns, leaving just the instance.
+                        return call(AS_CLOSURE(init), argCount);
+                    } else if (argCount != 0) {
+                        // Not resetting ip, but quitting vm.
+                        FORMAT_RUNTIME_ERROR("Expected 0 arguments but got %d.", argCount);
+                        return false;
+                    } else {
+                        gc.frames[gc.frameCount - 1].ip = ip;  // Frame gets reloaded to handle real functions.
+                        return true;
+                    }
                 }
                 case OBJ_FUNCTION:
                     runtimeError("ICE. No direct function call. Must wrap with closure.");

@@ -260,6 +260,7 @@ int Compiler::declareLocalVariable(){
     local.name = previous;
     local.assignments = 0;
     local.isFinal = false;
+    local.isCaptured = false;
 
     for (int i= (int) getLocals().count - 1; i >= 0; i--){
         Local check = getLocals()[i];
@@ -402,7 +403,7 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
     block();
 
     // scope not closed. return implicitly pops everything
-    emitBytes(OP_NIL, OP_RETURN);
+    emitEmptyReturn();
 
 #ifdef COMPILER_DEBUG_PRINT_CODE
     debugger.setChunk(currentChunk());

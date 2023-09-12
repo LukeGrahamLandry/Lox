@@ -32,7 +32,7 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     // Reserve a stack slot. For methods, it holds the receiver (`this`). For functions, it holds the ObjClosure but is unused.
     Local local;
     local.depth = 0;
-    if (currentFunctionType == TYPE_METHOD) {
+    if (currentFunctionType == TYPE_METHOD || currentFunctionType == TYPE_INITIALIZER) {
         local.name.start = "this";
         local.name.length = 4;
 
@@ -220,7 +220,11 @@ void Compiler::method() {
     ObjString* name = gc.copyString(previous.start, previous.length);
 
     // This leaves the closure value on the top of the stack.
-    functionExpression(TYPE_METHOD, name);
+    if (name == gc.init){
+        functionExpression(TYPE_INITIALIZER, name);
+    } else {
+        functionExpression(TYPE_METHOD, name);
+    }
 
     emitBytes(OP_METHOD, nameId);
 }
@@ -289,12 +293,15 @@ void Compiler::statement(){
         case TOKEN_RETURN: {
             advance();
             if (match(TOKEN_SEMICOLON)){
-                emitByte(OP_NIL);
+                emitEmptyReturn();
             } else {
+                if (functionStack.peekLast().type == TYPE_INITIALIZER) {
+                    errorAt(previous, "Can't return a value from an initializer.");
+                }
                 expression();
                 consume(TOKEN_SEMICOLON, "Expect ';' after 'return'.");
+                emitByte(OP_RETURN);
             }
-            emitByte(OP_RETURN);
             break;
         }
         case TOKEN_BREAK:
@@ -304,6 +311,16 @@ void Compiler::statement(){
         default:
             expressionStatement();
     }
+}
+
+void Compiler::emitEmptyReturn() {
+    if (functionStack.peekLast().type == TYPE_INITIALIZER) {
+        emitBytes(OP_GET_LOCAL, 0);  // Constructors return `this` implicitly.
+    } else {
+        emitByte(OP_NIL);  // Void functions return nil implicitly.
+    }
+
+    emitByte(OP_RETURN);
 }
 
 void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument){

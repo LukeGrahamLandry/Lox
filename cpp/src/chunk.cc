@@ -144,6 +144,7 @@ void Chunk::setDone(Memory& gc){
 
 #define OP(name) [name] = #name,
 
+// This is used for printing profiling info.
 string Chunk::opcodeNames[256] = {
         OP(OP_GET_CONSTANT)
         OP(OP_NIL)
@@ -172,6 +173,13 @@ string Chunk::opcodeNames[256] = {
         OP(OP_GET_LOCAL)
         OP(OP_SET_LOCAL)
         OP(OP_LOAD_INLINE_CONSTANT)
+        OP(OP_METHOD)
+        OP(OP_GET_PROPERTY)
+        OP(OP_SET_PROPERTY)
+        OP(OP_CLOSE_UPVALUE)
+        OP(OP_CLASS)
+        OP(OP_CLOSURE)
+
 };
 
 #undef OP
