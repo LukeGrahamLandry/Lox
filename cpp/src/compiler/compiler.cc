@@ -29,10 +29,17 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     func.function = gc.newFunction();
     func.scopeDepth = 0;
 
+    // Reserve a stack slot. For methods, it holds the receiver (`this`). For functions, it holds the ObjClosure but is unused.
     Local local;
     local.depth = 0;
-    local.name.start = "";
-    local.name.length = 0;
+    if (currentFunctionType == TYPE_METHOD) {
+        local.name.start = "this";
+        local.name.length = 4;
+
+    } else {
+        local.name.start = "";
+        local.name.length = 0;
+    }
     local.assignments = 0;
     local.isFinal = false;
     local.isCaptured = false;
@@ -145,6 +152,7 @@ void Compiler::varStatement(){
     consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 }
 
+// NAME(ARGS) { BODY }
 void Compiler::funDeclaration(){
     advance();
     parseLocalVariable("Expect function name.");
@@ -186,17 +194,36 @@ int Compiler::emitScopePops(int targetDepth){
 void Compiler::classDeclaration(){
     consume(TOKEN_CLASS, "unreachable");
     consume(TOKEN_IDENTIFIER, "Expect class name.");
-    int nameId = identifierConstant(previous);
-    int _varId = declareLocalVariable();
+    Token className = previous;
+    int nameId = identifierConstant(className);
+    declareLocalVariable();
     emitBytes(OP_CLASS, nameId);
     defineLocalVariable();
 
+    // TODO: probably dont need this since I only have local variables so I already know its on the stack.
+    namedVariable(className, false);  // Load the class value on the stack
+
     consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
-    // methods, etc.
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+        method();
+    }
     consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 
+    // Don't need tbe class on the stack anymore.
+    emitByte(OP_POP);
 }
 
+void Compiler::method() {
+    consume(TOKEN_IDENTIFIER, "Expect function name.");
+
+    int nameId = identifierConstant(previous);
+    ObjString* name = gc.copyString(previous.start, previous.length);
+
+    // This leaves the closure value on the top of the stack.
+    functionExpression(TYPE_METHOD, name);
+
+    emitBytes(OP_METHOD, nameId);
+}
 
 void Compiler::block(){
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)){

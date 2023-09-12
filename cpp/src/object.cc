@@ -117,12 +117,18 @@ void Memory::freeObject(Obj* object){
             break;
         }
         case OBJ_CLASS: {
+            delete ((ObjClass*) object)->methods;
             FREE(ObjClass, object);  // name is an interned string
             break;
         }
         case OBJ_INSTANCE: {
-            delete ((ObjInstance*)object)->fields;  // GC will clean up entries in the table eventually
-            FREE(OBJ_INSTANCE, object);
+            auto inst = (ObjInstance*)object;
+            delete inst->fields;  // GC will clean up entries in the table eventually
+            FREE(ObjInstance, object);
+            break;
+        }
+        case OBJ_BOUND_METHOD: {
+            FREE(ObjBoundMethod, object);
             break;
         }
         case OBJ_FREED:
@@ -158,6 +164,11 @@ void printObject(Value value, ostream* output){
         case OBJ_CLOSURE: {
             ObjString *name = AS_CLOSURE(value)->function->name;
             *output << "<fn " << (name == nullptr ? "script" : (char *) name->array.contents) << ">";
+            break;
+        }
+        case OBJ_BOUND_METHOD: {
+            ObjString *name = AS_BOUND_METHOD(value)->method->function->name;
+            *output << "<fn " << (char *) name->array.contents << ">";
             break;
         }
         case OBJ_UPVALUE:
@@ -242,9 +253,9 @@ ObjClosure* Memory::newClosure(ObjFunction* function) {
 ObjClass* Memory::newClass(ObjString* name) {
     ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
     klass->name = name;
+    klass->methods = new Table(*this);
     return klass;
 }
-
 
 ObjInstance* Memory::newInstance(ObjClass* klass) {
     ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
@@ -258,6 +269,14 @@ ObjUpvalue* Memory::newUpvalue(Value* location) {
     val->location = location;
     val->next = nullptr;
     val->closed = NIL_VAL();
+    return val;
+}
+
+
+ObjBoundMethod* Memory::newBoundMethod(Value receiver, ObjClosure* method) {
+    ObjBoundMethod* val = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
+    val->receiver = receiver;
+    val->method = method;
     return val;
 }
 
@@ -356,12 +375,19 @@ void Memory::traceReferences() {
             case OBJ_CLASS: {
                 auto* val = (ObjClass*) object;
                 markObject((Obj*) val->name);
+                markTable(*val->methods);
                 break;
             }
             case OBJ_INSTANCE: {
-                auto* val = (ObjInstance *) object;
+                auto* val = (ObjInstance*) object;
                 markObject((Obj*) val->klass);
                 markTable(*val->fields);
+                break;
+            }
+            case OBJ_BOUND_METHOD: {
+                auto* val = (ObjBoundMethod*) object;
+                markObject((Obj*) val->method);
+                markValue(val->receiver);
                 break;
             }
             case OBJ_FREED: {

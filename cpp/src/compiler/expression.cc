@@ -84,6 +84,9 @@ void Compiler::parsePrecedence(Precedence precedence){
             functionExpression(TYPE_FUNCTION, name);
             break;
         }
+        case TOKEN_THIS:
+            namedVariable(previous, false);
+            break;
         default:
             errorAt(previous, "Expect expression.");
             break;

@@ -107,6 +107,7 @@ int Debugger::debugInstruction(int offset){
         CONSTANT(OP_GET_PROPERTY)
         CONSTANT(OP_SET_PROPERTY)
         CONSTANT(OP_CLASS)
+        CONSTANT(OP_METHOD)
         BYTE_ARG(OP_POP_MANY)
         BYTE_ARG(OP_CALL)
         BYTE_ARG(OP_GET_LENGTH)

@@ -37,7 +37,7 @@ web: $(OBJS_WEB)
 	cat out/lox.js web/worker.js > out/workerbundle.js
 
 tests: native tests/tests.cc
-	g++ $(CPPFLAGS) -g tests/tests.cc -o $(BUILD_DIR)/tests
+	g++ $(ASAN_FLAGS) $(CPPFLAGS) -g tests/tests.cc -o $(BUILD_DIR)/tests
 
 all: native web tests
 

@@ -1,6 +1,8 @@
-class Toast {}
+class Toast {
+    hello() {
+        print this.jam;
+    }
+}
 var toast = Toast();
-print toast.jam = "grape"; // Prints "grape".
-print toast;
-print toast.jam;
-print "done";
+toast.jam = "grape";
+toast.hello();

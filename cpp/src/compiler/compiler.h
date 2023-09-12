@@ -46,7 +46,8 @@ typedef struct {
 
 typedef enum {
     TYPE_FUNCTION,
-    TYPE_SCRIPT
+    TYPE_SCRIPT,
+    TYPE_METHOD
 } FunctionType;
 
 typedef struct {
@@ -112,6 +113,7 @@ public:
     void parsePrecedence(Precedence precedence);
 
     void unary(Precedence precedence);
+    void method();
 
     void string();
     Value createStringValue(const char* chars, int length);

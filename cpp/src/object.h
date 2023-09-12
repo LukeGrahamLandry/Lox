@@ -18,6 +18,7 @@ typedef struct Value Value;
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
 #define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
 #define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
+#define IS_BOUND_METHOD(value)     isObjType(value, OBJ_BOUND_METHOD)
 
 #define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
@@ -25,6 +26,7 @@ typedef struct Value Value;
 #define AS_CLOSURE(value)       ((ObjClosure*)AS_OBJ(value))
 #define AS_CLASS(value)       ((ObjClass*)AS_OBJ(value))
 #define AS_INSTANCE(value)       ((ObjInstance*)AS_OBJ(value))
+#define AS_BOUND_METHOD(value)       ((ObjBoundMethod*)AS_OBJ(value))
 
 
 #define ALLOCATE(type, length) (type*) reallocate(nullptr, 0, sizeof(type) * length)
@@ -40,13 +42,15 @@ typedef enum {
     OBJ_UPVALUE,
     OBJ_CLASS,
     OBJ_INSTANCE,
-    OBJ_FREED
+    OBJ_FREED,
+    OBJ_BOUND_METHOD
 } ObjType;
 
 typedef struct ObjString ObjString;
 typedef struct Table Table;
 typedef struct Set Set;
 typedef struct ObjInstance ObjInstance;
+typedef struct ObjBoundMethod ObjBoundMethod;
 
 struct Obj {
     ObjType type;
@@ -110,7 +114,9 @@ typedef struct ObjUpvalue {
 typedef struct ObjClass {
     Obj obj;
     ObjString* name;
+    Table* methods;
 } ObjClass;
+
 
 bool isObjType(Value value, ObjType type);
 void printObject(Value value, ostream* output);
@@ -171,6 +177,7 @@ public:
     ObjUpvalue* newUpvalue(Value* function);
     ObjClass* newClass(ObjString* name);
     ObjInstance* newInstance(ObjClass* klass);
+    ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
     void markTable(Table& table);
     ObjNative* newNative(NativeFn function, uint8_t arity, ObjString* name);
     inline void freeStringChars(ObjString* string){
@@ -215,5 +222,11 @@ struct ObjInstance {
     Table* fields;
 };
 
+
+struct ObjBoundMethod {
+    Obj obj;
+    Value receiver;
+    ObjClosure* method;
+};
 
 #endif

@@ -389,24 +389,40 @@ InterpretResult VM::run() {
             }
 
             case OP_GET_PROPERTY: {
-                Value inst = peek();
-                if (!IS_INSTANCE(inst)) {
+                Value instVal = peek();
+                if (!IS_INSTANCE(instVal)) {
                     runtimeError("Only instances have fields.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
+                ObjInstance* inst = AS_INSTANCE(instVal);
 
                 ObjString* name = READ_STRING();
                 Value val;
-                bool found = AS_INSTANCE(inst)->fields->get(name, &val);
-
-
-                if (found) {
+                bool foundField = inst->fields->get(name, &val);\
+                if (foundField) {
                     pop();
                     push(val);
                 } else {
-                    FORMAT_RUNTIME_ERROR("Undefined property '%s'.", (char*) name->array.contents);
-                    return INTERPRET_RUNTIME_ERROR;
+                    bool foundMethod = inst->klass->methods->get(name, &val);
+                    if (foundMethod) {
+                        pop();
+                        ObjBoundMethod* method = gc.newBoundMethod(instVal, AS_CLOSURE(val));
+                        push(OBJ_VAL(method));
+                    } else {
+                        FORMAT_RUNTIME_ERROR("Undefined property '%s'.", (char*) name->array.contents);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
+                break;
+            }
+
+            case OP_METHOD: {
+                ASSERT_POP(2);
+                ObjString* name = READ_STRING();
+                Value func = peek();
+                ObjClass* klass = AS_CLASS(peek(1));
+                klass->methods->set(name, func);
+                pop(); // don't need the method closure anymore
                 break;
             }
 
@@ -677,6 +693,13 @@ bool VM::callValue(Value value, int argCount) {
             switch (AS_OBJ(value)->type) {
                 case OBJ_CLOSURE:
                     return call(AS_CLOSURE(value), argCount);
+                case OBJ_BOUND_METHOD: {
+                    auto bound = AS_BOUND_METHOD(value);
+                    // Insert the bound receiver, in the stack slot reserved for `this`.
+                    // Overwrites the ObjBoundMethod we just called, which is fine because inst->klass->methods means the gc can still find it. 
+                    gc.stackTop[argCount - 1] = bound->receiver;
+                    return call(bound->method, argCount);
+                }
                 case OBJ_NATIVE: {
                     ObjNative* func = AS_NATIVE(value);
                     if (func->arity != argCount) {
