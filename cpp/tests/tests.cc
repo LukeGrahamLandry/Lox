@@ -36,7 +36,7 @@ int main(){
     );
 
     run("class.lox",
-"Toast\nToast instance\ngrape\ngrape\ndone\nEnjoy water\n"
+"Toast\nToast instance\ngrape\ngrape\ndone\nEnjoy water\nEnjoy water2\nhi\nEnjoy water3\n"
     );
 
     for (const string& n : failed) {

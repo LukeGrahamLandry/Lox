@@ -182,6 +182,10 @@ void Compiler::parsePrecedence(Precedence precedence){
                 if (canAssign && match(TOKEN_EQUAL)) {
                     expression();
                     emitBytes(OP_SET_PROPERTY, nameId);
+                } else if (match(TOKEN_LEFT_PAREN)) {  // Fast path for direct method call
+                    int args = argumentList();
+                    emitBytes(OP_INVOKE, nameId);
+                    emitByte(args);
                 } else {
                     emitBytes(OP_GET_PROPERTY, nameId);
                 }
@@ -426,6 +430,7 @@ void Compiler::functionExpression(FunctionType funcType, ObjString* name){
     }
 }
 
+// a, b, c)
 int Compiler::argumentList(){
     int args = 0;
     if (!check(TOKEN_RIGHT_PAREN)){

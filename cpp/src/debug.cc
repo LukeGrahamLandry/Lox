@@ -56,6 +56,15 @@ int Debugger::jumpInstruction(const char* name, int sign, Chunk* chunk, int offs
     return offset + 3;
 }
 
+int Debugger::invokeInstruction(const char* name, int offset) {
+    uint8_t constant = chunk->getCodePtr()[offset + 1];
+    uint8_t argCount = chunk->getCodePtr()[offset + 2];
+    fprintf(stderr, "%-16s (%d args) %4d '", name, argCount, constant);
+    printValue(chunk->getConstant(constant), &cerr);
+    fprintf(stderr, "'\n");
+    return offset + 3;
+}
+
 int Debugger::debugInstruction(int offset){
     if (silent) return 0;
 
@@ -173,6 +182,8 @@ int Debugger::debugInstruction(int offset){
             }
             return offset;
         }
+        case OP_INVOKE:
+            return invokeInstruction("OP_INVOKE", offset);
         default:
             cerr << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;

@@ -96,6 +96,7 @@ public:
 
     ObjUpvalue* captureUpvalue(Value* local);
     void closeUpvalues(Value* last);
+    bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount);
 
     virtual void afterPrint();
 };

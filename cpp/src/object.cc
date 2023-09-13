@@ -290,6 +290,7 @@ void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize){
 #ifdef DEBUG_STRESS_GC  // TODO: also always run on array push even if no resize?
         collectGarbage();
 #endif
+        // TODO: when to collect
     }
 
     void* result = realloc(pointer, newSize);

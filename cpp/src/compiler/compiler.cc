@@ -101,7 +101,6 @@ void Compiler::declaration(){
         case TOKEN_CLASS:
             classDeclaration();
             break;
-
         case TOKEN_IMPORT: {
             advance();
             while (check(TOKEN_IDENTIFIER)){
@@ -111,6 +110,7 @@ void Compiler::declaration(){
                 Value value;
 
                 if (gc.natives->get(name, &value)){
+                    // TODO: auto import clock for compatibility with real clox.
                     emitConstantAccess(value);
                 } else {
                     errorAt(previous, "Invalid import");

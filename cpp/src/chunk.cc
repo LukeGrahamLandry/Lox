@@ -179,7 +179,13 @@ string Chunk::opcodeNames[256] = {
         OP(OP_CLOSE_UPVALUE)
         OP(OP_CLASS)
         OP(OP_CLOSURE)
-
+        OP(OP_GET_UPVALUE)
+        OP(OP_SET_UPVALUE)
+        OP(OP_CALL)
+        OP(OP_JUMP_IF_FALSE)
+        OP(OP_LOOP)
+        OP(OP_JUMP)
+        OP(OP_INVOKE)
 };
 
 #undef OP

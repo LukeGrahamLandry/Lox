@@ -19,3 +19,20 @@ class CoffeeMaker {
 
 var maker = CoffeeMaker("water");
 maker.brew();
+
+// Take a method reference
+var maker2 = CoffeeMaker("water2");
+var bound = maker2.brew;
+bound();
+
+// Non-method function stored in a field.
+fun hi() {
+    print "hi";
+}
+maker.hello = hi;
+maker.hello();
+
+// Class stored in a field and invoked.
+maker.the_class = CoffeeMaker;
+var maker3 = maker.the_class("water3");
+maker3.brew();

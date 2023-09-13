@@ -362,7 +362,6 @@ InterpretResult VM::run() {
             case OP_CALL: {
                 int argCount = READ_BYTE();
                 ASSERT_POP(argCount + 1)
-                int frames = gc.frameCount;
                 if (!callValue(peek(argCount), argCount)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
@@ -401,7 +400,7 @@ InterpretResult VM::run() {
 
                 ObjString* name = READ_STRING();
                 Value val;
-                bool foundField = inst->fields->get(name, &val);\
+                bool foundField = inst->fields->get(name, &val);
                 if (foundField) {
                     pop();
                     push(val);
@@ -429,6 +428,40 @@ InterpretResult VM::run() {
                 break;
             }
 
+            case OP_INVOKE: {
+                ObjString* name = READ_STRING();
+                int argCount = READ_BYTE();
+                ASSERT_POP(argCount + 1);
+                Value receiver = peek(argCount);
+
+                if (!IS_INSTANCE(receiver)) {
+                    runtimeError("Only instances have methods.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* inst = AS_INSTANCE(receiver);
+
+                // You're allowed to store a function in a field and call it, so must check.
+                // Fields can shadow methods, so it takes two look ups in the common case (sad).
+                Value field;
+                bool foundField = inst->fields->get(name, &field);
+                if (foundField) {
+                    gc.stackTop[-argCount - 1] = field;  // this is where the function lives when you do a normal call. But I think nothing relies on that?
+                    if (!callValue(field, argCount)) {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                } else {
+                    ObjClass* klass = inst->klass;
+                    if (!invokeFromClass(klass, name, argCount)) {
+                        runtimeError("Method not found");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                }
+
+                CACHE_FRAME()
+                break;
+            }
+
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
@@ -438,13 +471,10 @@ InterpretResult VM::run() {
             case OP_DEBUG_BREAK_POINT:
                 printDebugInfo();
                 break;
-
-            #ifdef VM_SAFE_MODE
             default: {
                 FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - currentChunk()->getCodePtr() - 1, currentChunk()->getCodeSize());
                 return INTERPRET_RUNTIME_ERROR;
             }
-            #endif
         }
 
         #ifdef VM_PROFILING
@@ -462,6 +492,18 @@ InterpretResult VM::run() {
     #undef ASSERT_SEQUENCE
     #undef ASSERT_POP
     #undef READ_SHORT
+}
+
+
+bool VM::invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
+    Value methodClosure;
+    if (klass->methods->get(name, &methodClosure)) {
+        if (call(AS_CLOSURE(methodClosure), argCount)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 ObjUpvalue* VM::captureUpvalue(Value* local){
