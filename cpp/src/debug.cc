@@ -125,6 +125,8 @@ int Debugger::debugInstruction(int offset){
         BYTE_ARG(OP_GET_UPVALUE)
         BYTE_ARG(OP_SET_UPVALUE)
         SIMPLE(OP_CLOSE_UPVALUE)
+        SIMPLE(OP_INHERIT)
+        CONSTANT(OP_GET_SUPER)
         case OP_JUMP:
             return jumpInstruction("OP_JUMP", 1, chunk, offset);
         case OP_JUMP_IF_FALSE:
@@ -184,6 +186,9 @@ int Debugger::debugInstruction(int offset){
         }
         case OP_INVOKE:
             return invokeInstruction("OP_INVOKE", offset);
+
+        case OP_SUPER_INVOKE:
+            return invokeInstruction("OP_SUPER_INVOKE", offset);
         default:
             cerr << "Unknown Opcode (index=" << offset << ", value=" << (int) instruction << ")" << endl;
             return offset + 1;

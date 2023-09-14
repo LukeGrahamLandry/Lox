@@ -19,6 +19,7 @@ typedef struct Value Value;
 #define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
 #define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
 #define IS_BOUND_METHOD(value)     isObjType(value, OBJ_BOUND_METHOD)
+#define IS_CLASS(value) isObjType(value, OBJ_CLASS)
 
 #define AS_FUNCTION(value)       ((ObjFunction *)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))

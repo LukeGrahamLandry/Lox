@@ -26,19 +26,26 @@ vector<string> failed;
 
 int main(){
     run(
-            "strings.lox",
-            "h\no\nhe\nllo\nhello\nell\nell\ntrue\n"
+        "strings.lox",
+ "h\no\nhe\nllo\nhello\nell\nell\ntrue\n"
     );
 
     run(
-            "functions.lox",
-            "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n"
+        "functions.lox",
+ "3\nouter\nreturn from outer\ncreate inner closure\nvalue\ndone\n"
     );
 
-    run("class.lox",
+    run(
+        "class.lox",
 "Toast\nToast instance\ngrape\ngrape\ndone\nEnjoy water\nEnjoy water2\nhi\nEnjoy water3\n"
     );
 
+    run(
+        "super.lox",
+ "Dunk in the fryer.\nFinish with icing\nA method\nA method\nB method\n"
+    );
+
+    cout << "---\n";
     for (const string& n : failed) {
         cout << "FAIL " << n << endl;
     }

@@ -4,6 +4,7 @@ Compiler::Compiler(Memory& gc) : gc(gc) {
     hadError = false;
     panicMode = false;
     err = &cerr;
+    currentHasSuper = false;
 };
 
 Compiler::~Compiler(){
@@ -192,16 +193,38 @@ int Compiler::emitScopePops(int targetDepth){
 }
 
 void Compiler::classDeclaration(){
+    bool prevHasSuper = currentHasSuper;  // Just use the callstack to save this.
     consume(TOKEN_CLASS, "unreachable");
     consume(TOKEN_IDENTIFIER, "Expect class name.");
     Token className = previous;
     int nameId = identifierConstant(className);
     declareLocalVariable();
-    emitBytes(OP_CLASS, nameId);
     defineLocalVariable();
+    emitBytes(OP_CLASS, nameId);
 
-    // TODO: probably dont need this since I only have local variables so I already know its on the stack.
-    namedVariable(className, false);  // Load the class value on the stack
+    beginScope();
+    if (match(TOKEN_LESS)) {
+        consume(TOKEN_IDENTIFIER, "Expect super class name.");
+        Token superName = previous;
+        if (identifiersEqual(className, superName)) {
+            errorAt(superName, "A class can't inherit from itself.");
+        }
+
+        // Reserve a stack slot to hold the super class
+        int superVarId = declareLocalVariable();
+        defineLocalVariable();
+        getLocals()[superVarId].name.length = 5;  // TODO: cringe. function should take arg instead of getting it from previous
+        getLocals()[superVarId].name.start = "super";
+
+        namedVariable(superName, false);  // load super class on the stack. this stays as that variable ^
+        namedVariable(className, false); // then the new class again. this gets popped off by OP_INHERIT
+        emitByte(OP_INHERIT);
+        currentHasSuper = true;
+    } else {
+        currentHasSuper = false;
+    }
+
+    namedVariable(className, false);  // Load the class value on the stack (above the super if any).
 
     consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
@@ -211,6 +234,8 @@ void Compiler::classDeclaration(){
 
     // Don't need tbe class on the stack anymore.
     emitByte(OP_POP);
+    currentHasSuper = prevHasSuper;
+    endScope();
 }
 
 void Compiler::method() {

@@ -87,6 +87,10 @@ void Compiler::parsePrecedence(Precedence precedence){
         case TOKEN_THIS:
             namedVariable(previous, false);
             break;
+        case TOKEN_SUPER: {
+            superAccess();
+            break;
+        }
         default:
             errorAt(previous, "Expect expression.");
             break;
@@ -202,6 +206,33 @@ void Compiler::parsePrecedence(Precedence precedence){
 #undef DOUBLE_BINARY_INFIX_OP
 }
 
+Token syntheticToken(const char* name) {
+    Token t;
+    t.start = name;
+    t.length = strlen(name);
+    return t;
+}
+
+void Compiler::superAccess() {
+    // TODO: different message if not in a class at all.
+    if (!currentHasSuper) {
+        errorAt(previous, "Can't use 'super' in a class with no superclass.");
+    }
+
+    consume(TOKEN_DOT, "Expect '.' after 'super'.");
+    consume(TOKEN_IDENTIFIER, "Expect superclass method name.");
+    int methodNameId = identifierConstant(previous);
+    namedVariable(syntheticToken("this"), false);
+    if (match(TOKEN_LEFT_PAREN)) {  // Fast path for direct method call
+        int args = argumentList();
+        namedVariable(syntheticToken("super"), false);
+        emitBytes(OP_SUPER_INVOKE, methodNameId);
+        emitByte(args);
+    } else {
+        namedVariable(syntheticToken("super"), false);
+        emitBytes(OP_GET_SUPER, methodNameId);
+    }
+}
 
 // TODO: should be easy to extend this with write opcodes instead of the read ones.
 // Expects '[' already consumed.

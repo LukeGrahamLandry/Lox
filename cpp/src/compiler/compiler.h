@@ -79,6 +79,7 @@ public:
     bool hadError;
     bool panicMode;
     Scanner* scanner;
+    bool currentHasSuper;
 
     #ifdef COMPILER_DEBUG_PRINT_CODE
     Debugger debugger;
@@ -115,6 +116,7 @@ public:
 
     void unary(Precedence precedence);
     void method();
+    void superAccess();
 
     void string();
     Value createStringValue(const char* chars, int length);

@@ -186,6 +186,9 @@ string Chunk::opcodeNames[256] = {
         OP(OP_LOOP)
         OP(OP_JUMP)
         OP(OP_INVOKE)
+        OP(OP_INHERIT)
+        OP(OP_GET_SUPER)
+        OP(OP_SUPER_INVOKE)
 };
 
 #undef OP

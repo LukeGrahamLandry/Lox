@@ -462,6 +462,59 @@ InterpretResult VM::run() {
                 break;
             }
 
+            case OP_INHERIT: {
+                ASSERT_POP(2)
+                Table* subClassMethods = AS_CLASS(peek())->methods;
+                if (!IS_CLASS(peek(1))) {
+                    runtimeError("Superclass must be a class.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Table* superMethods = AS_CLASS(peek(1))->methods;
+                subClassMethods->safeAddAll(*superMethods);
+                pop();  // subclass. leaves the super class at the top of the stack, it becomes a variable.
+                break;
+            }
+            case OP_GET_SUPER: {
+                ASSERT_POP(2);
+                Value superVal = peek();
+                Value thisVal = peek(1);
+                ObjString* name = READ_STRING();
+
+                // TODO: shared bindMethod function with normal method access.
+                Value unbound;
+                bool foundMethod = AS_CLASS(superVal)->methods->get(name, &unbound);
+                if (foundMethod) {
+                    ObjBoundMethod* method = gc.newBoundMethod(thisVal, AS_CLOSURE(unbound));
+                    pop();
+                    pop();
+                    push(OBJ_VAL(method));
+                } else {
+                    FORMAT_RUNTIME_ERROR("Undefined property '%s'.", (char*) name->array.contents);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                break;
+            }
+            case OP_SUPER_INVOKE: {
+                ObjString* name = READ_STRING();
+                int argCount = READ_BYTE();
+                ASSERT_POP(argCount + 1 + 1);
+                ObjClass* superClass = AS_CLASS(pop());
+                Value receiver = peek(argCount);
+
+                if (!IS_INSTANCE(receiver)) {
+                    runtimeError("Only instances have methods.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                if (!invokeFromClass(superClass, name, argCount)) {
+                    runtimeError("Method not found");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                CACHE_FRAME()
+                break;
+            }
             case OP_EXIT_VM:  // used to exit the repl or return from debugger.
                 return INTERPRET_EXIT;
 
