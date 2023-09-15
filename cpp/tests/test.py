@@ -1,152 +1,107 @@
+# This is a simpler version of https://github.com/munificent/craftinginterpreters/blob/master/tool/bin/test.dart
 import os
-from random import randint, randrange
 
-def lox(code):
-    filename = "testcase.lox"
-    with open(filename, "w") as f:
-        f.write(code)
-
-    process = os.popen("./clox -s " + filename)
-    output = process.read()
-    process.close()
-
-    os.remove(filename)
-
-    return output
+lox_path = "out/lox"
+tests_dir = ["tests/craftinginterpreters/test", "tests/case"]
+skip_files = [
+    # My implementation doesn't have special treat for global variables.
+    "use_global_in_initializer.lox", "redeclare_global.lox", "unreached_undefined.lox", "redefine_global.lox"
+]
+skip_folders = ["scanning", "expressions", "benchmark"]
+failed = []
+count = 0
 
 
-def py(code):
-    filename = "testcase.py"
-    with open(filename, "w") as f:
-        f.write(code)
+def parse_test_spec(src: list[str]) -> (list[str], bool):
+    expected = []
+    for line in src:
+        comment_start = line.find("//")
+        if comment_start == -1:
+            continue
 
-    process = os.popen("python3 " + filename)
-    output = process.read()
-    process.close()
+        out_prefix = "// expect: "
+        err_prefix = ["// expect runtime error:", "// [line"]
+        comment = line[comment_start:]
+        if comment.startswith(out_prefix):
+            expected.append(comment[len(out_prefix):].rstrip())
+        else:
+            for err in err_prefix:
+                if comment.startswith(err):
+                    return [], True
 
-    os.remove(filename)
-
-    return output
-
-
-testCount = [0]
-
-
-def compareToPython(name, lox_code, python_code):
-    testCount[0] += 1
-
-    python_result = py(python_code).splitlines()
-    lox_result = lox(lox_code).splitlines()
-
-    failed = 0
-    total = 0
-    for i, line in enumerate(python_result):
-        if line.endswith(".0"):
-            line = line[:-2]
-
-        if line != lox_result[i]:
-            print("[line {}] ({}) != ({})".format(i, line, lox_result[i]))
-            failed += 1
-
-        total += 1
-
-    if failed == 0:
-        print("PASS TEST", testCount[0], name)
-    else:
-        print("FAIL TEST", testCount[0], name)
-        print("Lox:")
-        print(lox_code)
-        print("Python:")
-        print(python_code)
+    return expected, False
 
 
-def simple_arithmetic():
-    lox_code = ""
-    python_code = ""
-    signs = ["+", "-", "*"]
-    for i in range(10):
-        lox_code += "print 10"
-        python_code += "print(10"
-        for j in range(20):
-            sign = signs[randrange(len(signs))]
-            if sign == "+" or sign == "-":
-                value = randint(-1000, 1000)
-            elif sign == "*":
-                value = randint(-10, 10)
+def run_tests(root: str, files: list[str]):
+    global count
+
+    for check in skip_folders:
+        if root.endswith(check):
+            return
+
+    for filename in files:
+        if not filename.endswith(".lox") or filename in skip_files:
+            continue
+        path = root + "/" + filename
+        count += 1
+
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        expected_output, expect_error = parse_test_spec(lines)
+
+        process = os.popen(lox_path + " " + path)
+        output = process.read()
+        status = process.close()
+
+        if expect_error:
+            if status == 0:
+                print("FAIL", filename, "Expected error but status=0.")
+                failed.append(filename)
             else:
-                value = 1
-
-            lox_code += " " + sign + " " + str(value)
-            python_code += " " + sign + " " + str(value)
-
-        lox_code += ";\n"
-        python_code += ")\n"
-
-    compareToPython("simple_arithmetic", lox_code, python_code)
-
-
-def safe_division():
-    lox_code = ""
-    python_code = ""
-    for i in range(10):
-        code = ""
-        result = randrange(-10, 10)
-        for i in range(10):
-            v = randrange(-10, 10)
-            if v == 0:
-                v = 2
-            result *= v
-
-            code += " / " + str(v)
-
-        lox_code += "print " + str(result) + code + ";\n"
-        python_code += "print(" + str(result) + code + ")\n"
-
-    compareToPython("safe_division", lox_code, python_code)
+                print("PASS", filename)
+        else:
+            output = output.splitlines()
+            if len(expected_output) != len(output):
+                print("FAIL", filename, "Expected", len(expected_output), "lines of output but got", len(output))
+                failed.append(filename)
+            else:
+                for expect, found in zip(expected_output, output):
+                    if expect != found:
+                        print("FAIL", filename, "Expected '", expect, "' but got '", found, "'")
+                        failed.append(filename)
+                        break
+                else:
+                    print("PASS", filename)
 
 
-def string_indexing():
-    letters = "qwertyuiopasdfghjklzxcvbnm"
-    strings = []
-    for i in range(10):
-        s = ""
-        for j in range(randrange(20) + 5):
-            s += letters[randrange(len(letters))]
-        strings.append(s)
+# Cope with being run from tests subdir.
+if not os.path.exists("Makefile"):
+    os.chdir("..")
+    if not os.path.exists("Makefile"):
+        print("Makefile not found.")
+        exit(1)
 
-    lox_code = ""
-    python_code = ""
-    for i in range(5):
-        code = "\"" + str(i) + "\""
-        for j in range(10):
-            s = strings[randrange(len(strings))]
-            a = randrange(len(s))
-            b = randrange(len(s))
-            if a > b:
-                a, b = b, a
-            if a == b:
-                a = 0
-                b = randrange(len(s)-2) + 1
+os.system("make native")
 
-            code += " + \"" + s + "\"[" + str(a) + ":" + str(b) + "]"
+for tests in tests_dir:
+    for root, dirs, files in os.walk(tests, topdown=False):
+        run_tests(root, files)
 
-        lox_code += "print " + code + ";\n"
-        python_code += "print(" + code + ")\n"
-
-    compareToPython("string_indexing", lox_code, python_code)
+if len(failed) == 0:
+    print("Passed all", count, "tests!")
+else:
+    print("Failed", len(failed), "of", count, "tests")
+    for filename in failed:
+        print("  -", filename)
+    print("Failed", len(failed), "of", count, "tests")
 
 
-def tests_cc():
-    process = os.popen("./clox_tests")
-    output = process.read()
-    process.close()
-    print(output)
-
-os.system("make clean")
-os.system("make all")
-os.chdir("out")
-
-tests_cc()
-simple_arithmetic()
-safe_division()
-# string_indexing()
+# TODO: tests for my additions. a?b:c ** break continue
+# TODO: capture stderr so it doesnt spam the console so much
+# TODO: runner for benches
+# TODO: 5 are failing.
+#       auto import clock
+#       support mutual recursion somehow
+#       and/or short-circuiting is broken
+#       method_binds_this is broken

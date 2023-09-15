@@ -19,9 +19,12 @@ A native executable for running lox programs.
 - Run with no arguments to enter REPL
 - Run with path to script as argument to execute it. 
 
-### tests
+### test
 
-Runs the lox files in `tests/cases` and checks their output. Requires being run from the cpp directory so it can find the test scripts. 
+Runs [the tests from the book](https://github.com/munificent/craftinginterpreters/tree/master/test) and files in `tests/cases` and checks their output. 
+
+For the book tests that expect errors, it doesn't check that the message matches exactly, just that there's any error at all. 
+It also skips a few about global variables because my implementation doesn't give them special treatment.  
 
 ## Extensions 
 

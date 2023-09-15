@@ -1,10 +1,10 @@
 class Toast {}
 var toast = Toast();
-print Toast;
-print toast;
-print toast.jam = "grape"; // Prints "grape".
-print toast.jam;
-print "done";
+print Toast;  // expect: Toast
+print toast;  // expect: Toast instance
+print toast.jam = "grape";  // expect: grape
+print toast.jam;  // expect: grape
+print "done";  // expect: done
 
 class CoffeeMaker {
   init(coffee) {
@@ -18,21 +18,21 @@ class CoffeeMaker {
 }
 
 var maker = CoffeeMaker("water");
-maker.brew();
+maker.brew(); // expect: Enjoy water
 
 // Take a method reference
 var maker2 = CoffeeMaker("water2");
 var bound = maker2.brew;
-bound();
+bound();  // expect: Enjoy water2
 
 // Non-method function stored in a field.
 fun hi() {
     print "hi";
 }
 maker.hello = hi;
-maker.hello();
+maker.hello();  // expect: hi
 
 // Class stored in a field and invoked.
 maker.the_class = CoffeeMaker;
 var maker3 = maker.the_class("water3");
-maker3.brew();
+maker3.brew();  // expect: Enjoy water3

@@ -16,13 +16,13 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
-print fib(4);
+print fib(4);  // expect: 3
 
 var x = "global";
 fun outer() {
   var x = "outer";
   fun inner() {
-    print x;
+    print x;  // expect: outer
   }
   inner();
 }
@@ -44,9 +44,9 @@ outer();
       return middle;
     }
 
-    var mid = outer();
-    var in = mid();
-    in();
+    var mid = outer();  // expect: return from outer
+    var in = mid();  // expect: create inner closure
+    in();  // expect: value
 }
 
-print("done");
+print("done");  // expect: done

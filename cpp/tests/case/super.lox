@@ -16,9 +16,10 @@ class Cruller < Doughnut {
   }
 }
 
+// expect: Dunk in the fryer.
+// expect: Finish with icing
 var c = Cruller();
 c.cook();
-
 
 class A {
   method() {
@@ -42,9 +43,9 @@ class C < B {
   }
 }
 
-C().test();
+C().test();  // expect: A method
 
 var c_test = C().test;
-c_test();
+c_test();  // expect: A method
 
-C().indirect()();
+C().indirect()();  // expect: B method

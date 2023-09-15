@@ -1,11 +1,11 @@
-print "hello"[0];
-print "hello"[-1];
-print "hello"[:2];
-print "hello"[2:];
-print "hello"[:];
-print "hello"[1:4];
-print "hello"[1:-1];
+print "hello"[0];  // expect: h
+print "hello"[-1];  // expect: o
+print "hello"[:2];  // expect: he
+print "hello"[2:];  // expect: llo
+print "hello"[:];  // expect: hello
+print "hello"[1:4];  // expect: ell
+print "hello"[1:-1];  // expect: ell
 
 var a = "world";
 var b = "wo" + "rld";
-print a == b;
+print a == b;  // expect: true

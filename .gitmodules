@@ -1,0 +1,3 @@
+[submodule "cpp/tests/craftinginterpreters"]
+	path = cpp/tests/craftinginterpreters
+	url = https://github.com/munificent/craftinginterpreters
