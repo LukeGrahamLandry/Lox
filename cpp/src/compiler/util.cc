@@ -96,6 +96,7 @@ void Compiler::writeShort(int offset, uint16_t v){
     }
 }
 
+// TODO: Make sure this doesnt break and/or that jump within expressions. I think its fine because they're relative and never need to go across buffers.
 ArrayList<byte>* Compiler::pushBuffer(){
     ArrayList<byte>* buffer = new ArrayList<byte>();
     bufferStack.push(buffer, gc);

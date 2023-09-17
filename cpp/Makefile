@@ -15,7 +15,8 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 # TODO: -DCOMPILER_DEBUG_PRINT_CODE can pass variables to the preprocessor. use that for debug mode that enables checks or verbose mode that logs?
 #       suddenly im having a combinatorial explosion that would benefit from using a build system that has functions.
 CXXFLAGS := $(INC_FLAGS) -MMD -MP -std=c++17
-# TODO: figure out if this is notably slower
+# TODO: this makes it much slower (fib benchmark like 7x slower). need a safe build and a release build
+#       -O3 also makes it ~2x faster
 ASAN_FLAGS := -fsanitize=address -fno-omit-frame-pointer -Wno-format-security -fsanitize=undefined
 
 $(BUILD_DIR)/native/%.cc.o: %.cc

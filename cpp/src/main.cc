@@ -28,10 +28,7 @@ void script(VM *vm, const char *path) {
 
     InterpretResult result = INTERPRET_COMPILE_ERROR;
     if (vm->loadFromSource(src)){
-        for (;;){
-            result = vm->run();
-            break;
-        }
+        result = vm->run();
     }
 
     free(src);

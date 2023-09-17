@@ -11,6 +11,7 @@
 typedef byte const_index_t;
 
 typedef enum {
+    OP_INVALID = 0,  // zero initialized memory shouldn't be valid instructions
     OP_GET_CONSTANT,
     OP_NIL,
     OP_TRUE,

@@ -407,8 +407,8 @@ InterpretResult VM::run() {
                 } else {
                     bool foundMethod = inst->klass->methods->get(name, &val);
                     if (foundMethod) {
-                        pop();
                         ObjBoundMethod* method = gc.newBoundMethod(instVal, AS_CLOSURE(val));
+                        pop();
                         push(OBJ_VAL(method));
                     } else {
                         FORMAT_RUNTIME_ERROR("Undefined property '%s'.", (char*) name->array.contents);
@@ -521,11 +521,11 @@ InterpretResult VM::run() {
             case OP_LOAD_INLINE_CONSTANT:
                 loadInlineConstant();
                 break;
-            case OP_DEBUG_BREAK_POINT:
+            case OP_DEBUG_BREAK_POINT:  // TODO: enter repl?
                 printDebugInfo();
                 break;
             default: {
-                FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %ld. Size of chunk: %d ", instruction, ip - currentChunk()->getCodePtr() - 1, currentChunk()->getCodeSize());
+                FORMAT_RUNTIME_ERROR("Unrecognised opcode '%d'. Index in chunk: %d. Size of chunk: %d ", instruction, ip - currentChunk()->getCodePtr() - 1, currentChunk()->getCodeSize());
                 return INTERPRET_RUNTIME_ERROR;
             }
         }
@@ -795,7 +795,7 @@ bool VM::callValue(Value value, int argCount) {
                     auto bound = AS_BOUND_METHOD(value);
                     // Insert the bound receiver, in the stack slot reserved for `this`.
                     // Overwrites the ObjBoundMethod we just called, which is fine because inst->klass->methods means the gc can still find it.
-                    gc.stackTop[argCount - 1] = bound->receiver;
+                    gc.stackTop[-argCount - 1] = bound->receiver;
                     return call(bound->method, argCount);
                 }
                 case OBJ_NATIVE: {

@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include <cassert>
 
 Compiler::Compiler(Memory& gc) : gc(gc) {
     hadError = false;
@@ -30,23 +31,15 @@ void Compiler::pushFunction(FunctionType currentFunctionType){
     func.function = gc.newFunction();
     func.scopeDepth = 0;
 
-    // Reserve a stack slot. For methods, it holds the receiver (`this`). For functions, it holds the ObjClosure but is unused.
-    Local local;
-    local.depth = 0;
-    if (currentFunctionType == TYPE_METHOD || currentFunctionType == TYPE_INITIALIZER) {
-        local.name.start = "this";
-        local.name.length = 4;
-
-    } else {
-        local.name.start = "";
-        local.name.length = 0;
-    }
-    local.assignments = 0;
-    local.isFinal = false;
-    local.isCaptured = false;
-    func.variableStack->push(local, gc);
-
     functionStack.push(func, gc);
+
+    // Reserve a stack slot. For methods, it holds the receiver (`this`). For functions, it holds the ObjClosure but is unused.
+    const char* name = "";
+    if (currentFunctionType == TYPE_METHOD || currentFunctionType == TYPE_INITIALIZER) {
+        name = "this";
+    }
+    makeLocal(syntheticToken(name));
+    defineLocalVariable();
 }
 
 // TODO: get rid of this cause i dont always call it
@@ -70,6 +63,9 @@ ObjFunction* Compiler::compile(char* src){
 
     pushFunction(TYPE_SCRIPT);
     advance();
+
+    // Original Lox doesn't have explicit imports, so implicitly import clock
+    importNative(syntheticToken("clock"));
 
     while (!match(TOKEN_EOF)){
         declaration();
@@ -104,18 +100,8 @@ void Compiler::declaration(){
             break;
         case TOKEN_IMPORT: {
             advance();
-            while (check(TOKEN_IDENTIFIER)){
-                parseLocalVariable("Expect identifier after 'import'.");
-                defineLocalVariable();
-                ObjString* name = gc.copyString(previous.start, previous.length);
-                Value value;
-
-                if (gc.natives->get(name, &value)){
-                    // TODO: auto import clock for compatibility with real clox.
-                    emitConstantAccess(value);
-                } else {
-                    errorAt(previous, "Invalid import");
-                }
+            while (match(TOKEN_IDENTIFIER)){
+                importNative(previous);
 
                 if (!match(TOKEN_COMMA)) break;
             }
@@ -128,6 +114,19 @@ void Compiler::declaration(){
     }
 
     if (panicMode) synchronize();
+}
+
+void Compiler::importNative(Token nameToken) {
+    makeLocal(nameToken);
+    defineLocalVariable();
+    ObjString* nameStr = gc.copyString(nameToken.start, nameToken.length);
+    Value value;
+
+    if (gc.natives->get(nameStr, &value)){
+        emitConstantAccess(value);
+    } else {
+        errorAt(nameToken, "Invalid import");
+    }
 }
 
 void Compiler::varStatement(){
@@ -211,10 +210,8 @@ void Compiler::classDeclaration(){
         }
 
         // Reserve a stack slot to hold the super class
-        int superVarId = declareLocalVariable();
+        int superVarId = makeLocal(syntheticToken("super"));
         defineLocalVariable();
-        getLocals()[superVarId].name.length = 5;  // TODO: cringe. function should take arg instead of getting it from previous
-        getLocals()[superVarId].name.start = "super";
 
         namedVariable(superName, false);  // load super class on the stack. this stays as that variable ^
         namedVariable(className, false); // then the new class again. this gets popped off by OP_INHERIT
@@ -346,24 +343,6 @@ void Compiler::emitEmptyReturn() {
     }
 
     emitByte(OP_RETURN);
-}
-
-void Compiler::emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument){
-    // Optimisation: if the last instruction was a setter expression statement,
-    // the stack just had the variable we want so why popping it off and putting it back.
-    // This makes it faster and saves 3 bytes every timeMS: SET I POP GET I -> SET I.
-    // This seems to break the assertion about statements not changing the stack size,
-    // but really it's just rewriting "x = 1; print x;" as "print x = 1;"
-    if (currentChunk()->getCodeSize() >= 3){
-        bool justPopped = currentChunk()->getInstruction(-1) == OP_POP;
-        bool wasSame = currentChunk()->getInstruction(-2) == argument;
-        bool justSetLocal = currentChunk()->getInstruction(-3) == checkInstruction || currentChunk()->getInstruction(-3) == emitInstruction;
-        if (justPopped && wasSame && justSetLocal){
-            currentChunk()->popInstruction();  // remove the pop
-            return;
-        }
-    }
-    emitBytes(emitInstruction, argument);
 }
 
 void Compiler::markRoots() {

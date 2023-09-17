@@ -19,9 +19,9 @@ void Compiler::number(){
     emitConstantAccess(NUMBER_VAL(value));
 }
 
-void Compiler::unary(Precedence precedence){
+void Compiler::unary(){
     TokenType operatorType = previous.type;
-    parsePrecedence(precedence);  // vm: push value to stack
+    parsePrecedence(PREC_UNARY);  // vm: push value to stack
 
     switch (operatorType) {
         case TOKEN_MINUS:
@@ -31,6 +31,8 @@ void Compiler::unary(Precedence precedence){
             emitByte(OP_NOT);
             break;
         default:
+            cerr << "Unreachable unary token." << endl;
+            std::abort();
             return;
     }
 }
@@ -51,11 +53,6 @@ Value Compiler::createStringValue(const char* chars, int length){
 void Compiler::parsePrecedence(Precedence precedence){
     advance();
 
-#define PREFIX_OP(token, methodCall) \
-            case token:              \
-                methodCall;          \
-                break;
-
 #define LITERAL(token, opcode)   \
             case token:              \
                 emitByte(opcode);    \
@@ -64,16 +61,17 @@ void Compiler::parsePrecedence(Precedence precedence){
     bool canAssign = precedence <= PREC_ASSIGNMENT;
 
     switch (previous.type) {
-        PREFIX_OP(TOKEN_NUMBER, number())
-        PREFIX_OP(TOKEN_MINUS, unary(PREC_UNARY))
-        PREFIX_OP(TOKEN_BANG, unary(PREC_NONE))
-        PREFIX_OP(TOKEN_LEFT_PAREN, grouping())
+        case TOKEN_NUMBER: number(); break;
+        case TOKEN_STRING: string(); break;
+        case TOKEN_LEFT_PAREN: grouping(); break;
+        case TOKEN_MINUS:  // fallthrough
+        case TOKEN_BANG:
+            unary();
+            break;
+
         LITERAL(TOKEN_TRUE, OP_TRUE)
         LITERAL(TOKEN_FALSE, OP_FALSE)
         LITERAL(TOKEN_NIL, OP_NIL)
-        case TOKEN_STRING:
-            string();
-            break;
         case TOKEN_IDENTIFIER:
             namedVariable(previous, canAssign);
             break;
@@ -200,13 +198,12 @@ void Compiler::parsePrecedence(Precedence precedence){
         }
     }
 
-#undef PREFIX_OP
 #undef BINARY_INFIX_OP
 #undef LITERAL
 #undef DOUBLE_BINARY_INFIX_OP
 }
 
-Token syntheticToken(const char* name) {
+Token Compiler::syntheticToken(const char* name) {
     Token t;
     t.start = name;
     t.length = strlen(name);
@@ -283,8 +280,9 @@ int Compiler::parseLocalVariable(const char* errorMessage) {
     return declareLocalVariable();
 }
 
-// for preventing self reference in a definition
-int Compiler::declareLocalVariable(){
+// Must call defineLocalVariable after.
+// They're separate for preventing self reference in a definition
+int Compiler::makeLocal(Token name) {
     if (getLocals().count >= 256) {  // TODO: another opcode for more but that means i have to grow the stack as well
         errorAt(previous, "Too many local variables in function.");
         return -1;
@@ -292,7 +290,7 @@ int Compiler::declareLocalVariable(){
 
     Local local;
     local.depth = -1;
-    local.name = previous;
+    local.name = name;
     local.assignments = 0;
     local.isFinal = false;
     local.isCaptured = false;
@@ -309,6 +307,10 @@ int Compiler::declareLocalVariable(){
     getLocals().push(local, gc);
 
     return (int) getLocals().count - 1;
+}
+
+int Compiler::declareLocalVariable(){
+    return makeLocal(previous);
 }
 
 void Compiler::defineLocalVariable(){
@@ -372,7 +374,7 @@ void Compiler::namedVariable(Token name, bool canAssign) {
         expression();
         emitBytes(set_op, local);
     } else {
-        emitGetAndCheckRedundantPop(get_op, set_op, local);
+        emitBytes(get_op, local);
     }
 }
 
@@ -408,6 +410,7 @@ int Compiler::addUpvalue(TargetFunction& func, uint8_t index, bool isLocal) {
     func.upvalues->push(val, gc);
     if (func.function->upvalueCount >= 255) {  // TODO
         cerr << "Too many up values. Need bigger index!" << endl;
+        exit(65);
     }
     return func.function->upvalueCount++;
 }

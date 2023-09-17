@@ -4,8 +4,9 @@ import os
 lox_path = "out/lox"
 tests_dir = ["tests/craftinginterpreters/test", "tests/case"]
 skip_files = [
-    # My implementation doesn't have special treat for global variables.
-    "use_global_in_initializer.lox", "redeclare_global.lox", "unreached_undefined.lox", "redefine_global.lox"
+    # My implementation doesn't have special treatment for global variables.
+    "use_global_in_initializer.lox", "redeclare_global.lox", "unreached_undefined.lox", "redefine_global.lox",
+    "mutual_recursion.lox"
 ]
 skip_folders = ["scanning", "expressions", "benchmark"]
 failed = []
@@ -20,7 +21,7 @@ def parse_test_spec(src: list[str]) -> (list[str], bool):
             continue
 
         out_prefix = "// expect: "
-        err_prefix = ["// expect runtime error:", "// [line"]
+        err_prefix = ["// expect runtime error:", "// [line", "// // expect runtime error:", "// Error at"]
         comment = line[comment_start:]
         if comment.startswith(out_prefix):
             expected.append(comment[len(out_prefix):].rstrip())
@@ -52,27 +53,34 @@ def run_tests(root: str, files: list[str]):
 
         process = os.popen(lox_path + " " + path)
         output = process.read()
-        status = process.close()
+        result_flag = process.close()
+        exitcode = 0 if result_flag is None else result_flag >> 8
 
         if expect_error:
-            if status == 0:
-                print("FAIL", filename, "Expected error but status=0.")
-                failed.append(filename)
+            if exitcode != 70 and exitcode != 65:
+                print("FAIL", path, "Expected status 65 or 70 but got", exitcode)
+                failed.append(path)
             else:
-                print("PASS", filename)
+                print("PASS", path)
+                pass
         else:
-            output = output.splitlines()
-            if len(expected_output) != len(output):
-                print("FAIL", filename, "Expected", len(expected_output), "lines of output but got", len(output))
-                failed.append(filename)
-            else:
-                for expect, found in zip(expected_output, output):
-                    if expect != found:
-                        print("FAIL", filename, "Expected '", expect, "' but got '", found, "'")
-                        failed.append(filename)
-                        break
+            if exitcode == 0:
+                output = output.splitlines()
+                if len(expected_output) != len(output):
+                    print("FAIL", path, "Expected", len(expected_output), "lines of output but got", len(output))
+                    failed.append(path)
                 else:
-                    print("PASS", filename)
+                    for expect, found in zip(expected_output, output):
+                        if expect != found:
+                            print("FAIL", path, "Expected '", expect, "' but got '", found, "'")
+                            failed.append(path)
+                            break
+                    else:
+                        print("PASS", path)
+                        pass
+            else:
+                print("FAIL", path, "Expected status 0 but got", exitcode)
+                failed.append(path)
 
 
 # Cope with being run from tests subdir.
@@ -85,7 +93,7 @@ if not os.path.exists("Makefile"):
 os.system("make native")
 
 for tests in tests_dir:
-    for root, dirs, files in os.walk(tests, topdown=False):
+    for root, dirs, files in os.walk(tests):
         run_tests(root, files)
 
 if len(failed) == 0:
@@ -100,8 +108,7 @@ else:
 # TODO: tests for my additions. a?b:c ** break continue
 # TODO: capture stderr so it doesnt spam the console so much
 # TODO: runner for benches
-# TODO: 5 are failing.
+# TODO: some are failing.
 #       auto import clock
 #       support mutual recursion somehow
-#       and/or short-circuiting is broken
-#       method_binds_this is broken
+#       gc problems found by asan

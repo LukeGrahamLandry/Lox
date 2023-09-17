@@ -73,7 +73,7 @@ public:
 
     Memory& gc;
     ostream* err;  // TODO: unused because im using fprintf. newer c++ still doesnt seem to give me a format function for streams even though it says it does?
-//private:
+private:
     Token current;
     Token previous;
     bool hadError;
@@ -98,7 +98,6 @@ public:
     void emitConstantAccess(Value value);
     Chunk* currentChunk();
     void advance();
-    void emitGetAndCheckRedundantPop(OpCode emitInstruction, OpCode checkInstruction, int argument);
     void number();
     void ifStatement();
     int emitJump(OpCode op);
@@ -113,10 +112,13 @@ public:
     void setContinueTarget();
 
     void parsePrecedence(Precedence precedence);
+    int makeLocal(Token name);
+    Token syntheticToken(const char* name);
 
-    void unary(Precedence precedence);
+    void unary();
     void method();
     void superAccess();
+    void importNative(Token name);
 
     void string();
     Value createStringValue(const char* chars, int length);

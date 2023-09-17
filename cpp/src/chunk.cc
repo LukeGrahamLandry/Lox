@@ -65,11 +65,13 @@ const_index_t Chunk::addConstant(Value value, Memory& gc){
     // TODO: another opcode for reading two bytes for the index for programs long enough to need more than 256
     if (constants->size() >= 256){
         cerr << "Too many constants in chunk." << endl;
+        exit(65);  // TODO: more consistent error handling. web version cant just exit here
         return -1;
     }
 
     if (IS_NIL(value) || IS_BOOL(value)){
         cerr << "Cannot add singleton value to chunk constants." << endl;
+        exit(65);
         return -1;
     }
 

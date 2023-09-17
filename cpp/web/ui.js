@@ -5,6 +5,7 @@ if (typeof(Worker) === "undefined") {
 let loxWorker = null;
 
 function handleRunClick() {
+    document.getElementById("output").value = "";
     const src = document.getElementById("code").value;
     setWaitingForVm(true);
     loxWorker.postMessage({

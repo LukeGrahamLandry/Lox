@@ -32,7 +32,9 @@ ObjString* Memory::copyString(const char* chars, int length){
         ptr[length] = '\0';
 
         str = allocateString(ptr, length, hash);
+        push(OBJ_VAL(str));  // for gc
         strings->setEntry(slot, str, NIL_VAL());
+        pop();
     }
 
     return str;
@@ -157,8 +159,7 @@ void printObject(Value value, ostream* output){
             break;
         }
         case OBJ_NATIVE: {
-            ObjString* name = AS_NATIVE(value)->name;
-            *output << "<native-fn " << (name == nullptr ? "?" : (char*) name->array.contents) << ">";
+            *output << "<native fn>";
             break;
         }
         case OBJ_CLOSURE: {
