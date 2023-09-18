@@ -6,7 +6,9 @@ Several implementations of Lox, the language described in [Crafting Interpreters
 
 - clox implemented in c++
 
-There are three targets that can be built with make. Build artifacts will be in the `out` folder. 
+> Perhaps the most awkward hodgepodge of c++, a language I learned largely by following a book that used c. 
+
+## Make Targets
 
 ### web
 
@@ -14,17 +16,22 @@ Compiled to web assembly (requires emscripten installed). There's a little ui th
 
 ### native 
 
-A native executable for running lox programs. 
+Builds a native executable for running lox programs. 
 
 - Run with no arguments to enter REPL
 - Run with path to script as argument to execute it. 
+
+### debug
+
+Builds an unoptimised executable with address sanitizer and runs gc as often as possible to help catch bugs. 
+This is the build used by the test runner. It's ~20x slower than the normal version. 
 
 ### test
 
 Runs [the tests from the book](https://github.com/munificent/craftinginterpreters/tree/master/test) and files in `tests/cases` and checks their output. 
 
 For the book tests that expect errors, it doesn't check that the message matches exactly, just that there's any error at all. 
-It also skips a few about global variables because my implementation doesn't give them special treatment.  
+It also skips a few about global variables because my implementation doesn't give them special treatment. 
 
 ## Extensions 
 
@@ -32,9 +39,8 @@ It also skips a few about global variables because my implementation doesn't giv
 - `s[index]` or `s[start:end]` (Index and slice strings. Negative indexes start from the end)
 - `condition ? true_value : false_value`
 - `a ** b` (a to the power of b)
-- `debugger;` (enter repl to inspect a certain point in script)
+- `debugger;` (print info about the state of the vm)
 - `import function_name;` or `import ClassName` (to import builtins)
-	- `clock() -> number`: Get the number of seconds since the program started. 
 	- `time() -> number`: Get the number of seconds since the UNIX epoch.  
 <!--
 	- `getc() -> number`: Read a single character from stdin and return the character code as an integer. Returns -1 at end of input. 

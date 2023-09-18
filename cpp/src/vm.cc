@@ -26,6 +26,8 @@ VM::VM() : compiler(Compiler(gc)) {
     exitCode = 0;
     gc.openUpvalues = nullptr;
     gc.enable = false;
+    gc.bytesAllocated = 0;
+    gc.nextGC = 1024 * 1024;
 
     defineNative("clock", LoxNatives::klock, 0);
     defineNative("time", LoxNatives::time, 0);

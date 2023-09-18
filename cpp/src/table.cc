@@ -1,6 +1,7 @@
 #include "table.h"
 
 #define TABLE_MAX_LOAD 0.75
+// Note: staying a power of 2 is important
 #define GROW_CAPACITY(old) (old == 0 ? 8 : old * 2)
 
 Table::Table(Memory& gc) : gc(gc) {
@@ -72,7 +73,7 @@ Entry* Table::findEntry(ObjString *key){
 }
 
 Entry* Table::findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *key){
-    uint32_t index = key->hash % tableCapacity;
+    uint32_t index = key->hash & (tableCapacity - 1);
     Entry* tombstone = nullptr;
 
     // we know this terminates because there will always be an empty slot since LOAD_FACTOR < 1
@@ -88,7 +89,7 @@ Entry* Table::findEntry(Entry* firstInTable, uint32_t tableCapacity, ObjString *
             return slot;
         }
 
-        index = (index + 1) % tableCapacity;
+        index = (index + 1) & (tableCapacity - 1);
     }
 }
 
@@ -170,7 +171,7 @@ bool Table::contains(ObjString *key) {
 // <outEntry> is set to either the entry containing the value or the best one to put it in if not found.
 bool Table::safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Entry** outEntry){
     if (capacity == 0) adjustCapacity();
-    uint32_t index = hash % capacity;
+    uint32_t index = hash & (capacity - 1);
     Entry* tombstone = nullptr;
     for (;;) {
         Entry* slot = entries + index;
@@ -188,7 +189,7 @@ bool Table::safeFindEntry(const char* chars, uint32_t length, uint32_t hash, Ent
             return true;
         }
 
-        index = (index + 1) % capacity;
+        index = (index + 1) & (capacity - 1);
     }
 }
 

@@ -3,6 +3,7 @@ SRC_DIRS ?= ./src
 
 SRCS_NATIVE := $(shell find $(SRC_DIRS) -name *.cc -and -not -name web.cc)
 SRCS_WEB := $(shell find $(SRC_DIRS) -name *.cc -and -not -name main.cc)
+OBJS_DEBUG := $(SRCS_NATIVE:%=$(BUILD_DIR)/debug/%.o)
 OBJS_NATIVE := $(SRCS_NATIVE:%=$(BUILD_DIR)/native/%.o)
 OBJS_WEB := $(SRCS_WEB:%=$(BUILD_DIR)/web/%.o)
 
@@ -12,38 +13,46 @@ INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 -include $(DEPS)
 
-# TODO: -DCOMPILER_DEBUG_PRINT_CODE can pass variables to the preprocessor. use that for debug mode that enables checks or verbose mode that logs?
-#       suddenly im having a combinatorial explosion that would benefit from using a build system that has functions.
 CXXFLAGS := $(INC_FLAGS) -MMD -MP -std=c++17
-# TODO: this makes it much slower (fib benchmark like 7x slower). need a safe build and a release build
-#       -O3 also makes it ~2x faster
-ASAN_FLAGS := -fsanitize=address -fno-omit-frame-pointer -Wno-format-security -fsanitize=undefined
+RELEASE_FLAGS := -O3
+DEBUG_FLAGS := -g -fsanitize=address -fno-omit-frame-pointer -Wno-format-security -fsanitize=undefined -DDEBUG_STRESS_GC
+WEB_FLAGS := -Oz
 
 $(BUILD_DIR)/native/%.cc.o: %.cc
 	mkdir -p $(dir $@)
-	g++ $(ASAN_FLAGS) $(CXXFLAGS) -g -c $< -o $@
+	g++ $(RELEASE_FLAGS) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/debug/%.cc.o: %.cc
+	mkdir -p $(dir $@)
+	g++ $(DEBUG_FLAGS) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/web/%.cc.o: %.cc
 	mkdir -p $(dir $@)
-	emcc $(CXXFLAGS) -c $< -o $@
+	emcc $(WEB_FLAGS) $(CXXFLAGS) -c $< -o $@
 
 native: $(OBJS_NATIVE)
-	g++ $(ASAN_FLAGS) $(CXXFLAGS) -g $(OBJS_NATIVE) -o $(BUILD_DIR)/lox
+	g++ $(RELEASE_FLAGS) $(CXXFLAGS) $(OBJS_NATIVE) -o $(BUILD_DIR)/lox
+
+debug: $(OBJS_DEBUG)
+	g++ $(DEBUG_FLAGS) $(CXXFLAGS) $(OBJS_DEBUG) -o $(BUILD_DIR)/lox_debug
 
 # Requires emscripten installed
 web: $(OBJS_WEB)
-	emcc $(CXXFLAGS) -sSTACK_SIZE=1048576 $(OBJS_WEB) -o $(BUILD_DIR)/lox.js \
+	emcc $(WEB_FLAGS) $(CXXFLAGS) -sSTACK_SIZE=1048576 $(OBJS_WEB) -o $(BUILD_DIR)/lox.js \
 		-sEXPORTED_FUNCTIONS=_lox_run_src,_init_vm,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
 	cp web/index.html out/index.html
 	cp web/ui.js out/ui.js
 	cat out/lox.js web/worker.js > out/workerbundle.js
 
-test: native
+test: debug
 	time python3 tests/test.py
 
-all: native web
+bench: native
+	time python3 tests/bench.py
+
+all: native debug web
 
 clean:
 	$(RM) -r $(BUILD_DIR)
 
-.PHONY: clean web native all test
+.PHONY: clean web native all test debug

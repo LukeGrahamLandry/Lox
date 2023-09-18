@@ -7,24 +7,49 @@
     </style>
 </head>
 <body>
-    <textarea id="code" cols="30" rows="10">
+
+    <div>
+        <b><a href="https://github.com/LukeGrahamLandry/Lox">Github</a></b> <br>
+        A stack based, bytecode virtual machine for a dynamically typed, garbage collected, object-oriented programming language. <br>
+        Lox has all the features you might expect: loops, functions, closures, classes, and inheritance. <br>
+        Written in C++ and compiled to web assembly for this demo. <br>
+        This is based on the book <a href="https://craftinginterpreters.com/">Crafting Interpreters</a>. 
+    </div>
+    <br>
+    <textarea id="code" cols="80" rows="10" style="max-width: 100%;">
 fun fib(n) {
   if (n < 2) return n;
   return fib(n - 2) + fib(n - 1);
 }
 
-print fib(5);
+print fib(6);
+
+class Animal {
+    init(name) {
+        this.name = name;
+    }
+
+    speak(word) {
+        print "The " + this.name + " says " + word;
+    }
+}
+
+class Duck < Animal {
+    init() {
+        super.init("duck");
+    }
+}
+
+var mallard = Duck();
+mallard.speak("quack");
+
     </textarea>
     <div>
         <button onclick="handleRunClick()" id="run">Run</button>
         <button onclick="forceResetWorker()" id="halt">Kill VM</button>
     </div>
-    <textarea id="output" cols="30" rows="10" readonly></textarea>
+    <textarea id="output" cols="80" rows="5" style="max-width: 100%;" readonly></textarea>
 
-    <div>
-        <b><a href="https://github.com/LukeGrahamLandry/Lox">Github</a></b> <br>
-        This is based on the book <a href="https://craftinginterpreters.com/">Crafting Interpreters</a>
-    </div>
     <script src="ui.js"></script>
 </body>
 </html>

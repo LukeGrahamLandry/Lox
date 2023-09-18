@@ -77,14 +77,14 @@ Obj* Memory::allocateObject(size_t size, ObjType type) {
     object->type = type;
     object->isMarked = false;
 #ifdef DEBUG_LOG_GC
-    printf("%p allocate %zu for %d\n", (void*)object, size, type);
+    fprintf(stderr, "%p allocate %zu for %d\n", (void*)object, size, type);
 #endif
     return object;
 }
 
 void Memory::freeObject(Obj* object){
 #ifdef DEBUG_LOG_GC
-    printf("%p free type %d\n", (void*)object, object->type);
+    fprintf(stderr, "%p free type %d\n", (void*)object, object->type);
 #endif
     ObjType ty = object->type;
     object->type = OBJ_FREED;
@@ -282,6 +282,7 @@ ObjBoundMethod* Memory::newBoundMethod(Value receiver, ObjClosure* method) {
 }
 
 void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize){
+    bytesAllocated += newSize - oldSize;
     if (newSize == 0){
         free(pointer);
         return nullptr;
@@ -290,8 +291,11 @@ void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize){
     if (enable && newSize > oldSize) {
 #ifdef DEBUG_STRESS_GC  // TODO: also always run on array push even if no resize?
         collectGarbage();
+#else
+        if (bytesAllocated > nextGC) {
+            collectGarbage();
+        }
 #endif
-        // TODO: when to collect
     }
 
     void* result = realloc(pointer, newSize);
@@ -306,7 +310,8 @@ void* Memory::reallocate(void* pointer, size_t oldSize, size_t newSize){
 
 void Memory::collectGarbage() {
 #ifdef DEBUG_LOG_GC
-    cout << "-- gc begin\n";
+    cerr << "-- gc begin\n";
+    size_t before = bytesAllocated;
 #endif
 
     markRoots();
@@ -314,8 +319,11 @@ void Memory::collectGarbage() {
     strings->removeUnmarkedKeys();
     sweep();
 
+    nextGC = bytesAllocated * GC_HEAP_GROW_FACTOR;
+
 #ifdef DEBUG_LOG_GC
-    cout << "-- gc end\n";
+    cerr << "-- gc end\n";
+    fprintf(stderr, "   collected %zu bytes (from %zu to %zu) next at %zu\n", before - bytesAllocated, before, bytesAllocated, nextGC);
 #endif
 }
 
@@ -345,9 +353,9 @@ void Memory::traceReferences() {
         Obj* object = grayStack.back();
         grayStack.pop_back();
 #ifdef DEBUG_LOG_GC
-        printf("%p blacken ", (void*)object);
-        printValue(OBJ_VAL(object));
-        printf("\n");
+        fprintf(stderr, "%p blacken ", (void*)object);
+        printValue(OBJ_VAL(object), &cerr);
+        cerr << endl;
 #endif
         switch (object->type) {
             case OBJ_STRING:
@@ -410,7 +418,7 @@ void Memory::sweep() {
     int markedCount = 0;
     while (object != nullptr) {
 #ifdef DEBUG_LOG_GC
-        printf("%p sweep\n", (void*)object);
+        fprintf(stderr, "%p sweep\n", (void*)object);
 #endif
         if (object->isMarked) {
             prevDotNext = &object->next;
@@ -444,9 +452,9 @@ void Memory::markObject(Obj* object) {
     if (object == nullptr) return;
     if (object->isMarked) return;
 #ifdef DEBUG_LOG_GC
-    printf("%p mark ", (void*)object);
-    printValue(OBJ_VAL(object));
-    printf("\n");
+    fprintf(stderr, "%p mark ", (void*)object);
+    printValue(OBJ_VAL(object), &cerr);
+    cerr << endl;
 #endif
 
     object->isMarked = true;

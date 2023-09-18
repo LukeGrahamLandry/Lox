@@ -163,6 +163,8 @@ public:
     Value* stackTop;  // where the next value will be inserted
     ObjString* init = nullptr;
 
+    size_t bytesAllocated;
+    size_t nextGC;
 
     CallFrame frames[FRAMES_MAX];  // it annoys me to have a separate bonus stack instead of storing return addresses in the normal value stack
     int frameCount;

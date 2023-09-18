@@ -1,7 +1,7 @@
 # This is a simpler version of https://github.com/munificent/craftinginterpreters/blob/master/tool/bin/test.dart
 import os
 
-lox_path = "out/lox"
+lox_path = "out/lox_debug"
 tests_dir = ["tests/craftinginterpreters/test", "tests/case"]
 skip_files = [
     # My implementation doesn't have special treatment for global variables.
@@ -90,7 +90,7 @@ if not os.path.exists("Makefile"):
         print("Makefile not found.")
         exit(1)
 
-os.system("make native")
+os.system("make debug")
 
 for tests in tests_dir:
     for root, dirs, files in os.walk(tests):
@@ -107,8 +107,3 @@ else:
 
 # TODO: tests for my additions. a?b:c ** break continue
 # TODO: capture stderr so it doesnt spam the console so much
-# TODO: runner for benches
-# TODO: some are failing.
-#       auto import clock
-#       support mutual recursion somehow
-#       gc problems found by asan
